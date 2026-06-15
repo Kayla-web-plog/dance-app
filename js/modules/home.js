@@ -110,13 +110,10 @@ App._buildHome = async function(el) {
           <div class="hh-ring-small-text"><div class="hh-ring-small-num">${ringRemain}</div><div class="hh-ring-small-sub">剩余天数</div></div>
         </div>
       </div>
-      <!-- 动态单价 -->
+      <!-- 动态单价：大字=目标单价，小字=实际单价 -->
       <div class="hh-price-box">
-        <div class="hh-price-row"><span>实际单价</span> <strong>${hasCheckinData?'¥'+Math.round(stats.actualPrice||0):'¥--'}</strong></div>
-        ${hasCheckinData
-          ? `<div class="hh-price-next">下一节课后降至 <span>¥${Math.round(Math.max(targetPrice, totalPrice/(used+1)))}</span></div>
-             <div class="hh-price-saved">预计累计省钱: <span>¥${Math.round(Math.max(0,(targetPrice*used)-totalPrice))}</span></div>`
-          : `<div class="hh-price-next">上完第一节课后单价将更新</div>`}
+        <div class="hh-price-row"><span>目标单价</span> <strong style="font-size:28px;color:#fff">¥${targetPrice}</strong></div>
+        <div class="hh-price-next">${hasCheckinData?'实际单价 <span>¥'+Math.round(stats.actualPrice||0)+'</span> · 累计省 ¥'+Math.round(Math.max(0,(targetPrice*used)-totalPrice)):'实际单价 ¥-- · 上完第一节课后单价将更新'}</div>
       </div>
     </div>`;
 
@@ -300,11 +297,43 @@ App._genShareCard = async function() {
       </div>
       <div style="display:flex;gap:10px">
         <button class="btn btn-ghost btn-b" style="flex:1" onclick="this.closest('.mdl').remove()">关闭</button>
-        <button class="btn btn-p btn-b" style="flex:1" onclick="App.nav('share');this.closest('.mdl').remove()">查看完整海报</button>
+        <button class="btn btn-p btn-b" style="flex:1" onclick="App._showFullPoster()">查看完整海报</button>
       </div>
     </div>`;
     document.body.appendChild(modal);
   } catch(e) { UI.toast('加载失败', 'err'); }
+};
+
+// ===== 查看完整海报（弹出Canvas大图modal）=====
+App._showFullPoster = async function() {
+  try {
+    const data = await API.get('/api/achievements/summary');
+    const s = data.summary || {};
+    document.getElementById('shareModal')?.remove();
+
+    const pModal = document.createElement('div');
+    pModal.className = 'mdl';
+    pModal.id = 'posterFullModal';
+    pModal.innerHTML = `<div class="mdl-box" style="text-align:center;width:min(340px,92vw);padding:16px;max-height:95vh;overflow-y:auto">
+      <div style="font-size:15px;font-weight:700;margin-bottom:12px">📤 完整海报</div>
+      <div id="fullPosterBox" style="border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.2)"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-p btn-b" style="flex:1" onclick="App._shareSave()">💾 保存图片</button>
+        <button class="btn btn-ghost btn-b" style="flex:1" onclick="document.getElementById('posterFullModal').remove()">关闭</button>
+      </div>
+    </div>`;
+    document.body.appendChild(pModal);
+    App._genPoster(s);
+
+    setTimeout(() => {
+      const canvas = document.querySelector('#posterBox canvas');
+      const fullBox = document.getElementById('fullPosterBox');
+      if (canvas && fullBox) { fullBox.innerHTML = ''; fullBox.appendChild(canvas.cloneNode(true)); }
+      else if (fullBox && document.getElementById('posterBox')) {
+        fullBox.innerHTML = document.getElementById('posterBox').innerHTML;
+      }
+    }, 600);
+  } catch(e) { UI.toast('生成失败: '+e.message, 'err'); }
 };
 
 // ===== 分布统计 =====

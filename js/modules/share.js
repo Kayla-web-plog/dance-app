@@ -1,5 +1,5 @@
 // 舞力打卡 - 模块6: 社交分享&激励
-// v7.5 随机Kpop背景图片
+// v8.3 真实图片背景 + 目标单价突出显示 + 随机励志文案
 
 App.loadShare = async function() {
   const container = document.getElementById('shareContent');
@@ -48,19 +48,19 @@ App.loadShare = async function() {
 
 App._genPoster = function(s) {
   const canvas = document.createElement('canvas');
-  const W = 320, H = 480;
+  const W = 320, H = 520;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  // 图片列表：本地Kpop图 + 远程风景/城市/夜景图
+  // 图片列表：本地Kpop图 + 远程风景图
   const bgImages = [
     'assets/images/Kpop_dance_studio_scene__purpl_2026-06-10T10-07-57.png',
     'assets/images/Kpop_dance_idol_silhouette__pu_2026-06-10T10-43-08.png',
     'assets/images/kpop_dance_silhouette__female__2026-06-10T10-43-56.png',
-    'https://picsum.photos/seed/poster1/320/480',
-    'https://picsum.photos/seed/poster2/320/480',
-    'https://picsum.photos/seed/nightcity/320/480',
-    'https://picsum.photos/seed/ocean/320/480',
+    'https://picsum.photos/seed/poster1/320/520',
+    'https://picsum.photos/seed/poster2/320/520',
+    'https://picsum.photos/seed/nightcity/320/520',
+    'https://picsum.photos/seed/ocean/320/520',
   ];
   const imgIdx = Math.floor(Math.random() * bgImages.length);
   const bgImg = new Image();
@@ -69,29 +69,33 @@ App._genPoster = function(s) {
 
   // 随机励志文案
   const quotes = [
-    '越跳越美，越跳越省！',
-    '舞者没有休息日',
-    '坚持热爱，奔赴山海',
-    '不是因为优秀才坚持',
-    '每一个动作都算数',
-    '舞力全开，省钱有道',
+    { text: '越跳越美，越跳越省！', sub: '每一步都是进步' },
+    { text: '舞者没有休息日', sub: '今天的汗水是明天的光芒' },
+    { text: '坚持热爱，奔赴山海', sub: '舞蹈是我最好的投资' },
+    { text: '不是因为优秀才坚持', sub: '而是因为坚持才优秀' },
+    { text: '每一个动作都算数', sub: '每一次打卡都值得' },
+    { text: '舞力全开，省钱有道', sub: '用汗水浇灌梦想' },
   ];
   const quote = quotes[Math.floor(Math.random() * quotes.length)];
 
-  bgImg.onload = function() {
-    // 先绘制背景图（50%透明度，清晰可见）
+  const targetPrice = s.targetPrice || 40;
+  const saved = s.totalDone > 0 ? Math.abs(targetPrice * s.totalDone - (s.totalPrice||0)) : 0;
+  const actualPrice = s.totalDone > 0 ? (s.totalPrice||0) / s.totalDone : 0;
+
+  function drawPoster() {
+    // 绘制背景图（50%透明度）
     ctx.globalAlpha = 0.5;
     ctx.drawImage(bgImg, 0, 0, W, H);
     ctx.globalAlpha = 1.0;
 
-    // 覆盖半透明黑色蒙层（文字可读性 + 保留图片细节）
+    // 半透明黑色蒙层
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.fillRect(0, 0, W, H);
 
-    // 装饰圆（增加层次感）
+    // 装饰圆
     ctx.fillStyle = 'rgba(255,255,255,.05)';
     ctx.beginPath(); ctx.arc(280, 50, 100, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(30, 420, 80, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(30, 470, 80, 0, Math.PI*2); ctx.fill();
 
     // 标题
     ctx.fillStyle = '#fff';
@@ -104,74 +108,57 @@ App._genPoster = function(s) {
     ctx.fillStyle = 'rgba(255,255,255,.7)';
     ctx.fillText(s.cardName || '我的舞蹈卡', 160, 85);
 
-    // 省钱金额 42号粗体
-    const saved = s.totalDone > 0 ? Math.abs((s.targetPrice||40)*s.totalDone - (s.totalPrice||0)) : 0;
-    ctx.font = 'bold 42px sans-serif';
+    // ===== 核心数据：目标单价（大字突出）=====
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.fillText('目标单价', 160, 140);
+
+    ctx.font = 'bold 48px sans-serif';
     ctx.fillStyle = '#fff';
-    ctx.fillText(saved > 0 ? U.money(saved) : '¥0', 160, 170);
+    ctx.fillText('¥' + targetPrice, 160, 195);
 
     ctx.font = '12px sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    ctx.fillText('累计节省', 160, 200);
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fillText(s.totalDone > 0 ? ('实际单价 ¥' + Math.round(actualPrice)) : '实际单价 ¥--', 160, 220);
 
-    // 数据
-    ctx.font = '13px sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.75)';
-    ctx.fillText(`已上课时: ${s.totalDone || 0}节`, 160, 260);
-    if (s.totalDone > 0) {
-      ctx.fillText(`实际单价: ${U.money((s.totalPrice||0) / s.totalDone)}`, 160, 285);
-    }
-    ctx.fillText(`出勤率: ${s.rate || '0%'}`, 160, 310);
+    // 分割线
+    ctx.strokeStyle = 'rgba(255,255,255,.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, 245); ctx.lineTo(280, 245); ctx.stroke();
 
-    // 底部励志文案
-    ctx.font = 'bold 15px sans-serif';
+    // 数据行
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    ctx.fillText('已上课时: ' + (s.totalDone||0) + '节', 160, 275);
+    ctx.fillText('累计省钱: ¥' + Math.round(saved), 160, 300);
+    ctx.fillText('出勤率: ' + (s.rate||'0%'), 160, 325);
+
+    // 励志文案
+    ctx.font = 'bold 16px sans-serif';
     ctx.fillStyle = '#fff';
-    ctx.fillText(quote, 160, 430);
+    const words = quote.text.split('');
+    let x = 160 - (ctx.measureText(quote.text).width) / 2;
+    ctx.fillText('"' + quote.text + '"', 160, 420);
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.fillText(quote.sub, 160, 445);
 
+    // 日期
     ctx.font = '10px sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.fillText(U.today(), 160, 455);
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.fillText(U.today(), 160, 480);
 
     const posterBox = document.getElementById('posterBox');
-    posterBox.innerHTML = '';
-    posterBox.appendChild(canvas);
-  };
+    if (posterBox) { posterBox.innerHTML = ''; posterBox.appendChild(canvas); }
+  }
 
+  bgImg.onload = drawPoster;
   bgImg.onerror = function() {
-    // 图片加载失败时用渐变背景
+    // fallback: 渐变背景
     const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#9955FF');
-    grad.addColorStop(0.5, '#cc66ee');
-    grad.addColorStop(1, '#FF77BB');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-    // 重新调用onload里的绘制逻辑（不含图片）
-    const fakeImg = { onload: null };
-    // 直接绘制文字内容
-    ctx.fillStyle = 'rgba(255,255,255,.05)';
-    ctx.beginPath(); ctx.arc(280, 50, 100, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(30, 420, 80, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('舞力打卡', 160, 55);
-    ctx.font = '13px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.7)';
-    ctx.fillText(s.cardName || '我的舞蹈卡', 160, 85);
-    const saved = s.totalDone > 0 ? Math.abs((s.targetPrice||40)*s.totalDone - (s.totalPrice||0)) : 0;
-    ctx.font = 'bold 42px sans-serif'; ctx.fillStyle = '#fff';
-    ctx.fillText(saved > 0 ? U.money(saved) : '¥0', 160, 170);
-    ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.55)';
-    ctx.fillText('累计节省', 160, 200);
-    ctx.font = '13px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.75)';
-    ctx.fillText(`已上课时: ${s.totalDone || 0}节`, 160, 260);
-    if (s.totalDone > 0) ctx.fillText(`实际单价: ${U.money((s.totalPrice||0) / s.totalDone)}`, 160, 285);
-    ctx.fillText(`出勤率: ${s.rate || '0%'}`, 160, 310);
-    ctx.font = 'bold 15px sans-serif'; ctx.fillStyle = '#fff';
-    ctx.fillText(quote, 160, 430);
-    ctx.font = '10px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.fillText(U.today(), 160, 455);
-    const posterBox = document.getElementById('posterBox');
-    posterBox.innerHTML = '';
-    posterBox.appendChild(canvas);
+    grad.addColorStop(0, '#9955FF'); grad.addColorStop(1, '#FF77BB');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    drawPoster();
   };
 };
 
