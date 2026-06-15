@@ -1,0 +1,14 @@
+{
+  "name": "舞力打卡 - 智能课表省钱助手",
+  "short_name": "舞力打卡",
+  "description": "用数据逼你上课、把课费越跳越便宜",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f23",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

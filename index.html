@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f8f7ff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/app.css?v=8.2">
+<title>舞力打卡</title>
+</head>
+<body>
+<div id="app">
+
+  <!-- ========== SVG Sprite (hidden) ========== -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <!-- 舞者Logo -->
+    <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="4" r="2.5"/><path d="M12 6.5c0 2-3 5.5-3 8 0 1.5 1 2.5 1.5 3.5"/><path d="M12 6.5c0 2 3 5.5 3 8 0 1.5-1 2.5-1.5 3.5"/><path d="M8 10.5c-2 .5-4 2-4.5 3"/><path d="M16 10.5c2 .5 4 2 4.5 3"/><path d="M12 18v3"/>
+    </symbol>
+    <!-- 首页 - 舞蹈室镜面+舞者+音符 -->
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 5l4.5-3L12 5l4.5-3L21 5"/><path d="M7 14a3 3 0 116 0 3 3 0 01-6 0Z"/><circle cx="10" cy="14" r=".8" fill="currentColor"/><path d="M9 18l-2 3h10l-2-3"/><circle cx="18" cy="6" r="1.2" fill="currentColor" opacity=".5"/><circle cx="18" cy="4.5" r=".5" fill="currentColor" opacity=".3"/>
+    </symbol>
+    <!-- 课表 - 日历+芭蕾舞鞋 -->
+    <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M8 15a3 1.5 0 015 0c1.5 0 3-1 3-2"/><circle cx="9.5" cy="18" r="1" fill="currentColor"/>
+    </symbol>
+    <!-- 打卡 - 聚光灯+对勾 -->
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v2"/><path d="M12 21L8 15H4L8 9"/><path d="M12 21l4-6h4l-4-6"/><path d="M10 12l2 2 4-5"/>
+    </symbol>
+    <!-- 分享 - 黑胶唱片+舞蹈裙摆 -->
+    <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="5" stroke-width="1.5" opacity=".6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M10 8l4 1.5L10 11"/><path d="M9 12l3 1.5-3 1.5"/>
+    </symbol>
+    <!-- 我的 - 舞者侧脸剪影 -->
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="7" r="4"/><path d="M6 14a5 5 0 014.5-6c1.8 0 3.5 1 4.5 2.5"/><path d="M4 21c0-3 2-5.5 5-6.5"/><path d="M20 19c-.5-3-2.5-4.5-5-5"/><circle cx="11" cy="7" r="1.2" fill="currentColor"/>
+    </symbol>
+    <!-- 返回 -->
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 18l-6-6 6-6"/>
+    </symbol>
+    <!-- 舞蹈卡 - 精致卡片 -->
+    <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 11h20"/><circle cx="7" cy="16" r="1.5" fill="currentColor"/><path d="M12 16h5"/>
+    </symbol>
+    <!-- 课表管理 -->
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 6h10M9 12h10M9 18h10"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/>
+    </symbol>
+    <!-- 记录 - 优雅柱状 -->
+    <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 20V8"/><path d="M12 20V4"/><path d="M18 20v-6"/><circle cx="6" cy="7" r="2" fill="currentColor"/><circle cx="12" cy="3" r="2" fill="currentColor"/><circle cx="18" cy="13" r="2" fill="currentColor"/>
+    </symbol>
+    <!-- 补救/魔法 -->
+    <symbol id="i-magic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v2"/><path d="M19 10h2"/><path d="M5 10H3"/><path d="M16.5 6.5l1.5-1.5"/><path d="M6.5 6.5L5 5"/><circle cx="12" cy="12" r="3.5" fill="currentColor" opacity=".3"/><circle cx="12" cy="12" r="3.5"/><path d="M12 18v3M9 21h6"/>
+    </symbol>
+    <!-- 成就 -->
+    <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 9H4a2 2 0 01-2-2V5h4"/><path d="M18 9h2a2 2 0 002-2V5h-4"/><path d="M4 5h16v4a6 6 0 01-6 6h-4a6 6 0 01-6-6V5z"/><path d="M12 15v3M8 21h8"/>
+    </symbol>
+    <!-- 编辑 -->
+    <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/>
+    </symbol>
+    <!-- 添加 -->
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5v14M5 12h14"/>
+    </symbol>
+    <!-- 删除 -->
+    <symbol id="i-del" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+    </symbol>
+    <!-- 相机 -->
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+    </symbol>
+    <!-- 微信 -->
+    <symbol id="i-wechat" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8.5 7a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM6 13a1 1 0 110 2 1 1 0 010-2zM15 9a1 1 0 110 2 1 1 0 010-2zm-3 2c-3.87 0-7 2.69-7 6 0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3 0-3.31-3.13-6-7-6z"/>
+    </symbol>
+    <!-- 火焰 -->
+    <symbol id="i-fire" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2c-2 4-6 6-6 10a6 6 0 0012 0c0-4-4-6-6-10z"/>
+    </symbol>
+    <!-- 星 -->
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+    </symbol>
+  </svg>
+
+  <!-- Header -->
+  <div class="hdr" id="header">
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="hdr-back" id="btnBack" style="display:none" onclick="App.goBack()">
+        <svg><use href="#i-back"/></svg>
+      </button>
+      <span class="hdr-t" id="headerTitle">
+        <span class="hdr-logo"><svg><use href="#i-logo"/></svg></span>
+        舞力打卡
+      </span>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ========== 登录页 ========== -->
+  <div class="pg on" id="pg-auth">
+    <div class="auth">
+      <div class="auth-logo-wrap">
+        <svg style="color:#fff"><use href="#i-logo"/></svg>
+      </div>
+      <div class="auth-name">舞力打卡</div>
+      <div class="auth-sub">智能课表省钱助手 · 越跳越省</div>
+      <div class="auth-f">
+        <div class="inp-g">
+          <label class="inp-l">手机号</label>
+          <input type="tel" class="inp" id="authPhone" placeholder="请输入手机号" maxlength="11">
+        </div>
+        <div class="inp-g">
+          <label class="inp-l">验证码</label>
+          <div class="auth-code">
+            <input type="text" class="inp" id="authCode" placeholder="验证码" maxlength="6">
+            <button class="auth-send" id="authSendCode" onclick="_sendCode()">获取验证码</button>
+          </div>
+        </div>
+        <button class="btn btn-p btn-b" onclick="__login()">登录 / 注册</button>
+        <button class="btn btn-ghost btn-b" style="margin-top:10px" onclick="_doGuest()">免登录体验</button>
+        <div class="auth-divider">其他方式</div>
+        <div class="auth-wx-btn" onclick="UI.toast('微信登录即将开放','ok')">
+          <svg width="20" height="20"><use href="#i-wechat"/></svg> 微信一键登录
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 首页 ========== -->
+  <div class="pg" id="pg-home">
+    <div id="homeContent"></div>
+  </div>
+
+  <!-- ========== 舞蹈卡列表 ========== -->
+  <div class="pg" id="pg-card">
+    <div id="cardList"></div>
+  </div>
+
+  <!-- ========== 创建/编辑舞蹈卡 ========== -->
+  <div class="pg" id="pg-cardForm">
+    <div id="cardFormContent"></div>
+  </div>
+
+  <!-- ========== 课表 ========== -->
+  <div class="pg" id="pg-schedule">
+    <div id="scheduleContent"></div>
+  </div>
+
+  <!-- ========== 智能课表 ========== -->
+  <div class="pg" id="pg-smartSchedule">
+    <div id="smartContent"></div>
+  </div>
+
+  <!-- ========== 打卡 ========== -->
+  <div class="pg" id="pg-checkin">
+    <div id="checkinContent"></div>
+  </div>
+
+  <!-- ========== 打卡历史 ========== -->
+  <div class="pg" id="pg-checkinHistory">
+    <div id="historyContent"></div>
+  </div>
+
+  <!-- ========== 缺课补救 ========== -->
+  <div class="pg" id="pg-recover">
+    <div id="recoverContent"></div>
+  </div>
+
+  <!-- ========== 分享 ========== -->
+  <div class="pg" id="pg-share">
+    <div id="shareContent"></div>
+  </div>
+
+  <!-- ========== 成就 ========== -->
+  <div class="pg" id="pg-achievements">
+    <div id="achContent"></div>
+  </div>
+
+  <!-- ========== 个人中心 ========== -->
+  <div class="pg" id="pg-profile">
+    <div id="profileContent"></div>
+  </div>
+
+  <!-- ========== 编辑资料 ========== -->
+  <div class="pg" id="pg-profileEdit">
+    <div id="editProfileContent"></div>
+  </div>
+
+  <!-- ========== 提醒设置 ========== -->
+  <div class="pg" id="pg-reminders">
+    <div id="remindersContent"></div>
+  </div>
+
+  <!-- Tab Bar - SVG图标 -->
+  <nav class="tb">
+    <div class="tb-i on" data-r="home" onclick="App.nav('home')">
+      <span class="tb-ico"><svg><use href="#i-home"/></svg></span>
+      <span class="tb-lbl">首页</span>
+    </div>
+    <div class="tb-i" data-r="schedule" onclick="App.nav('schedule')">
+      <span class="tb-ico"><svg><use href="#i-cal"/></svg></span>
+      <span class="tb-lbl">课表</span>
+    </div>
+    <div class="tb-i" data-r="checkin" onclick="App.nav('checkin')">
+      <span class="tb-ico"><svg><use href="#i-check"/></svg></span>
+      <span class="tb-lbl">打卡</span>
+    </div>
+    <div class="tb-i" data-r="share" onclick="App.nav('share')">
+      <span class="tb-ico"><svg><use href="#i-share"/></svg></span>
+      <span class="tb-lbl">分享</span>
+    </div>
+    <div class="tb-i" data-r="profile" onclick="App.nav('profile')">
+      <span class="tb-ico"><svg><use href="#i-user"/></svg></span>
+      <span class="tb-lbl">我的</span>
+    </div>
+  </nav>
+
+</div>
+
+<!-- Scripts (顺序关键: app-core → 模块 → app-init) -->
+<script src="js/utils.js?v=8.2"></script>
+<script src="js/ui.js?v=8.2"></script>
+<script src="js/api.js?v=8.2"></script>
+<script src="js/app-core.js?v=8.2"></script>
+<script src="js/modules/auth.js?v=8.2"></script>
+<script src="js/modules/card.js?v=8.2"></script>
+<script src="js/modules/schedule.js?v=8.2"></script>
+<script src="js/modules/smartSchedule.js?v=8.2"></script>
+<script src="js/modules/checkin.js?v=8.2"></script>
+<script src="js/modules/share.js?v=8.2"></script>
+<script src="js/modules/home.js?v=8.2"></script>
+<script src="js/modules/reminders.js?v=8.2"></script>
+<script src="js/app-init.js?v=8.2"></script>
+
+<script>
+function __login() {
+  const phone = document.getElementById('authPhone')?.value?.trim();
+  const code = document.getElementById('authCode')?.value?.trim();
+  _doLogin(phone, code);
+}
+</script>
+</body>
+</html>

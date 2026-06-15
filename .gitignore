@@ -1,0 +1,10 @@
+node_modules/
+server/node_modules/
+data/*.db
+data/*.db-shm
+data/*.db-wal
+/tmp/
+.DS_Store
+.workbuddy/
+*.log
+.gh-cli/
