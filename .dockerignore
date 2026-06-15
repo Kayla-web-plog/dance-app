@@ -1,0 +1,9 @@
+node_modules/
+server/node_modules/
+data/*.db
+data/*.db-shm
+data/*.db-wal
+.workbuddy/
+.git/
+*.log
+.gh-cli/
