@@ -10,3 +10,9 @@ pages_build_output_dir = "/"
 binding = "DB"
 database_name = "dance-app-db"
 database_id = "YOUR_D1_DATABASE_ID_HERE"  # ← 创建D1后替换
+
+# R2 存储桶绑定（用于存照片、视频、分享海报）
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "dance-app-files"
+preview_bucket_name = "dance-app-files-preview"

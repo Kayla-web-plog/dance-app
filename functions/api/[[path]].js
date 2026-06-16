@@ -1,5 +1,5 @@
-// 舞力打卡 - Cloudflare Pages Functions 后端 (v8.4)
-// 处理所有 /api/* 路由，使用 D1 数据库
+// 舞力打卡 - Cloudflare Pages Functions 后端 (v8.5)
+// 处理所有 /api/* 路由，使用 D1 数据库 + R2 文件存储
 
 // ---------- 辅助函数 ----------
 function json(data, status = 200) {
@@ -148,6 +148,63 @@ export async function onRequest(context) {
         await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(auth.slice(7)).run();
       }
       return json({ success: true });
+    }
+
+    // ===== 文件上传到 R2 =====
+    // POST /api/upload - 上传照片/视频到 R2，返回公共 URL
+    if (path === '/api/upload' && method === 'POST') {
+      const auth = await requireAuth(request, env);
+      if (auth.error) return auth.error;
+
+      try {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file || typeof file === 'string') return error('请选择文件');
+
+        const fileName = formData.get('fileName') || file.name || `file_${Date.now()}`;
+        const fileType = file.type || '';
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime'];
+        if (!allowedTypes.some(t => fileType.startsWith(t.split('/')[0]))) {
+          return error('仅支持图片和视频文件');
+        }
+
+        // 生成唯一文件名：userId/类型/时间戳-随机.后缀
+        const ext = fileName.includes('.') ? fileName.split('.').pop() : (fileType.startsWith('image') ? 'jpg' : 'mp4');
+        const typeFolder = fileType.startsWith('image') ? 'photos' : 'videos';
+        const uniqueName = `${auth.userId}/${typeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        // 上传到 R2
+        await env.BUCKET.put(uniqueName, file.stream(), {
+          httpMetadata: { contentType: fileType || (fileType.startsWith('image') ? 'image/jpeg' : 'video/mp4') },
+          // 公开访问：通过 Cloudflare R2 公共 URL
+        });
+
+        // 构建公共访问 URL（需要启用 R2 公共访问）
+        // 格式：https://pub-<account_hash>.r2.dev/<key>
+        // 或者通过自定义域：https://your-domain.com/<key>
+        // 这里先返回 R2 对象 key，前端拼接完整 URL
+        const fileUrl = `/r2/${uniqueName}`; // 通过 Workers 代理访问
+        return json({ url: uniqueName, success: true });
+      } catch (e) {
+        console.error('[UPLOAD ERROR]', e.message);
+        return error('文件上传失败: ' + e.message, 500);
+      }
+    }
+
+    // GET /api/r2/:key - 代理访问 R2 文件（解决公共访问问题）
+    const r2Match = path.match(/^\/api\/r2\/(.+)$/);
+    if (r2Match && method === 'GET') {
+      try {
+        const key = decodeURIComponent(r2Match[1]);
+        const object = await env.BUCKET.get(key);
+        if (!object) return error('文件不存在', 404);
+        const headers = new Headers();
+        object.httpMetadata?.contentType && headers.set('Content-Type', object.httpMetadata.contentType);
+        headers.set('Cache-Control', 'public, max-age=31536000');
+        return new Response(object.body, { headers });
+      } catch (e) {
+        return error('文件读取失败: ' + e.message, 500);
+      }
     }
 
     // GET /api/users/profile

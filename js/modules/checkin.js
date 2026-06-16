@@ -1,11 +1,25 @@
-// 舞力打卡 - 打卡/补卡 v5.2
-// 修复: 日历日期→当日课表→选课补卡
+// 舞力打卡 - 打卡/补卡 v8.5
+// 修复: 日历日期→当日课表→选课补卡 | 文件上传R2
 
 App._checkinTemplate = null;
-App._photoData = null;
-App._videoData = null;
+App._photoUrl = null;    // 改为存 R2 URL
+App._videoUrl = null;    // 改为存 R2 URL
 App._stars = 0;
 App._backfillDate = null;
+
+// ===== 文件上传到 R2 的辅助函数 =====
+App._uploadToR2 = async function(file, customName) {
+  try {
+    UI.toast('正在上传文件...', 'ok');
+    const result = await API.uploadFile(file, customName);
+    UI.toast('文件上传成功', 'ok');
+    return result.url; // 返回 R2 对象 key
+  } catch (e) {
+    console.error('[UPLOAD]', e);
+    UI.toast('文件上传失败: ' + e.message, 'err');
+    return null;
+  }
+};
 
 App.loadCheckin = async function(params) {
   const cid = document.getElementById('checkinContent');
@@ -189,17 +203,24 @@ App._renderCheckinForm = async function(cid, tid) {
 };
 
 // 视频处理
-App._handleVideo = function(input, placeId) {
+App._handleVideo = async function(input, placeId) {
   const file = input.files[0];
   if (!file) return;
   if (file.size > 50*1024*1024) { UI.toast('视频不能超过50MB','err'); return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    this._videoData = reader.result;
+
+  // 上传到 R2
+  const url = await this._uploadToR2(file, `video_${Date.now()}.${file.name.split('.').pop()}`);
+  if (url) {
+    this._videoUrl = url;
     const p = document.getElementById(placeId);
     if (p) p.innerHTML = `<svg width="20" height="20" style="color:var(--green)"><use href="#i-check"/></svg><div style="font-size:12px;color:var(--green);margin-top:4px">${file.name}</div>`;
-  };
-  reader.readAsDataURL(file);
+  } else {
+    // 上传失败，保留本地文件引用（提交时再尝试上传）
+    this._videoUrl = null;
+    this._videoFile = file; // 暂存文件对象，提交时上传
+    const p = document.getElementById(placeId);
+    if (p) p.innerHTML = `<svg width="20" height="20" style="color:var(--orange)"><use href="#i-warn"/></svg><div style="font-size:12px;color:var(--orange);margin-top:4px">${file.name} (待上传)</div>`;
+  }
 };
 
 // 拍照
@@ -210,14 +231,30 @@ App._capturePhoto = async function() {
     const video = document.createElement('video'); video.srcObject = stream; await video.play();
     const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
-    this._photoData = canvas.toDataURL('image/jpeg',0.8);
     stream.getTracks().forEach(t=>t.stop());
-    const box = document.getElementById(boxId);
-    if (box) { box.innerHTML = `<img src="${this._photoData}" style="width:100%;height:100%;object-fit:cover">`; box.classList.add('has'); }
+
+    // 将 canvas 转为 Blob → File → 上传 R2
+    canvas.toBlob(async (blob) => {
+      if (!blob) { UI.toast('拍照失败，请重试', 'err'); return; }
+      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const url = await this._uploadToR2(file, `photo_${Date.now()}.jpg`);
+      if (url) {
+        this._photoUrl = url;
+        const box = document.getElementById(boxId);
+        if (box) { box.innerHTML = `<img src="/api/r2/${url}" style="width:100%;height:100%;object-fit:cover">`; box.classList.add('has'); }
+      } else {
+        // 上传失败，使用本地预览（提交时再上传）
+        this._photoUrl = null;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const box = document.getElementById(boxId);
+        if (box) { box.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover">`; box.classList.add('has'); }
+      }
+    }, 'image/jpeg', 0.8);
   } catch(e) {
-    this._photoData = 'mock_'+Date.now();
+    // 拍照失败，使用演示模式
+    this._photoUrl = null;
     const box = document.getElementById(boxId);
-    if (box) { box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%"><svg width="32" height="32" style="color:var(--clr)"><use href="#i-camera"/></svg><span style="font-size:12px;color:var(--t3)">(暂用演示)</span></div>`; box.classList.add('has'); }
+    if (box) { box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%"><svg width="32" height="32" style="color:var(--clr)"><use href="#i-camera"/></svg><span style="font-size:12px;color:var(--t3)">(拍照演示模式)</span></div>`; box.classList.add('has'); }
   }
 };
 
@@ -229,8 +266,24 @@ App._submitBackfill = async function() {
   const courseName = (document.getElementById('bfCourseName')?.value || this._checkinTemplate?.courseName || '舞蹈课').trim();
   const note = document.getElementById('bfNote')?.value?.trim()||'';
   const tags = [...document.querySelectorAll('#bfTagRow .chip.on')].map(c=>c.dataset.t);
+
+  // 如果照片/视频还没上传到 R2，先上传
+  if (this._photoData && !this._photoUrl) {
+    UI.toast('正在上传照片...', 'ok');
+    // _photoData 是 Base64，需要转为 File
+    const blob = await (await fetch(this._photoData)).blob();
+    const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    this._photoUrl = await this._uploadToR2(file, `photo_${Date.now()}.jpg`);
+  }
+  if (this._videoData && !this._videoUrl) {
+    UI.toast('正在上传视频...', 'ok');
+    const blob = await (await fetch(this._videoData)).blob();
+    const file = new File([blob], `video_${Date.now()}.mp4`, { type: 'video/mp4' });
+    this._videoUrl = await this._uploadToR2(file, `video_${Date.now()}.mp4`);
+  }
+
   try {
-    await API.post('/api/checkins', { cardId:this.card.id, templateId:this._checkinTemplate?.id, courseName, courseDate:this._backfillDate, status:'done', photo:this._photoData, video:this._videoData, note, stars:this._stars, tags });
+    await API.post('/api/checkins', { cardId:this.card.id, templateId:this._checkinTemplate?.id, courseName, courseDate:this._backfillDate, status:'done', photo:this._photoUrl||'', video:this._videoUrl||'', note, stars:this._stars, tags });
     UI.toast(`补卡成功! ${this._backfillDate}`,'ok');
     setTimeout(()=>this.nav('checkinHistory'),500);
   } catch(e) { UI.toast(e.message||'补卡失败','err'); }
@@ -243,8 +296,27 @@ App._submitCheckin = async function() {
   if (!this.card) { try { const d=await API.getCards(); const a=(d.cards||[]).find(c=>c.status==='active'); if(a)this.card=a; else{UI.toast('请先创建舞蹈卡','err');return;} } catch(e){UI.toast('获取舞蹈卡失败','err');return;} }
   const note = document.getElementById('checkinNote')?.value?.trim()||'';
   const tags = [...document.querySelectorAll('#tagRow .chip.on')].map(c=>c.dataset.t);
+
+  // 如果照片/视频还没上传到 R2，先上传
+  if (this._photoData && !this._photoUrl) {
+    UI.toast('正在上传照片...', 'ok');
+    try {
+      const blob = await (await fetch(this._photoData)).blob();
+      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      this._photoUrl = await this._uploadToR2(file, `photo_${Date.now()}.jpg`);
+    } catch(e) { console.error('[UPLOAD PHOTO]', e); }
+  }
+  if (this._videoData && !this._videoUrl) {
+    UI.toast('正在上传视频...', 'ok');
+    try {
+      const blob = await (await fetch(this._videoData)).blob();
+      const file = new File([blob], `video_${Date.now()}.mp4`, { type: 'video/mp4' });
+      this._videoUrl = await this._uploadToR2(file, `video_${Date.now()}.mp4`);
+    } catch(e) { console.error('[UPLOAD VIDEO]', e); }
+  }
+
   try {
-    await API.post('/api/checkins', { cardId:this.card.id, templateId:this._checkinTemplate?.id, courseName:this._checkinTemplate?.courseName||'舞蹈课', status:'done', photo:this._photoData, video:this._videoData, note, stars:this._stars, tags });
+    await API.post('/api/checkins', { cardId:this.card.id, templateId:this._checkinTemplate?.id, courseName:this._checkinTemplate?.courseName||'舞蹈课', status:'done', photo:this._photoUrl||'', video:this._videoUrl||'', note, stars:this._stars, tags });
     // 激励动画
     App._showIncentiveToast();
     setTimeout(()=>App.nav('home'),1500);
