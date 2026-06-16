@@ -8,3 +8,5 @@ data/*.db-wal
 .workbuddy/
 *.log
 .gh-cli/
+.wrangler/
+dist/

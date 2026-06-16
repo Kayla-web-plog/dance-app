@@ -1,0 +1,12 @@
+name = "dance-app"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 静态文件目录（相对于项目根目录）
+pages_build_output_dir = "/"
+
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "dance-app-db"
+database_id = "YOUR_D1_DATABASE_ID_HERE"  # ← 创建D1后替换

@@ -138,6 +138,11 @@ const API = {
     return this.request('DELETE', path);
   },
 
+  // delete 别名（delete 是保留字）
+  delete(path) {
+    return this.del(path);
+  },
+
   // ===== 账户相关 =====
   login(phone, code) {
     return this.post('/api/auth/login', { phone, code });

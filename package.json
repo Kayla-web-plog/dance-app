@@ -1,13 +1,15 @@
 {
   "name": "dance-app",
-  "version": "5.3.0",
-  "description": "舞力打卡 - 舞蹈课表省钱助手PWA",
+  "version": "8.4.0",
+  "description": "舞力打卡 - 舞蹈课表省钱助手PWA (Cloudflare版)",
   "private": true,
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
-    "start": "node server/index.js",
-    "postinstall": "cd server && npm install"
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy",
+    "db:init": "wrangler d1 execute dance-app-db --file=migrations/001_init.sql",
+    "db:remote": "wrangler d1 execute dance-app-db --remote --file=migrations/001_init.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
   }
 }

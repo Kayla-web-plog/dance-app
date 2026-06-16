@@ -118,22 +118,45 @@
       <div class="auth-name">舞力打卡</div>
       <div class="auth-sub">智能课表省钱助手 · 越跳越省</div>
       <div class="auth-f">
-        <div class="inp-g">
-          <label class="inp-l">手机号</label>
-          <input type="tel" class="inp" id="authPhone" placeholder="请输入手机号" maxlength="11">
-        </div>
-        <div class="inp-g">
-          <label class="inp-l">验证码</label>
-          <div class="auth-code">
-            <input type="text" class="inp" id="authCode" placeholder="验证码" maxlength="6">
-            <button class="auth-send" id="authSendCode" onclick="_sendCode()">获取验证码</button>
+        <!-- 步骤1：输入手机号 -->
+        <div id="authStep1">
+          <div class="inp-g">
+            <label class="inp-l">手机号</label>
+            <input type="tel" class="inp" id="authPhone" placeholder="请输入手机号" maxlength="11">
           </div>
+          <button class="btn btn-p btn-b" onclick="_doRegister()">生成登录码</button>
+          <div class="auth-hint">首次使用将自动生成6位登录码，请牢记</div>
         </div>
-        <button class="btn btn-p btn-b" onclick="__login()">登录 / 注册</button>
-        <button class="btn btn-ghost btn-b" style="margin-top:10px" onclick="_doGuest()">免登录体验</button>
-        <div class="auth-divider">其他方式</div>
-        <div class="auth-wx-btn" onclick="UI.toast('微信登录即将开放','ok')">
-          <svg width="20" height="20"><use href="#i-wechat"/></svg> 微信一键登录
+        <!-- 步骤2：显示生成的登录码 -->
+        <div id="authStep2" style="display:none">
+          <div class="auth-code-display">
+            <div class="auth-code-label">你的登录码</div>
+            <div class="auth-code-value" id="displayCode">------</div>
+            <div class="auth-code-hint">请牢记此登录码！下次登录时需要输入</div>
+          </div>
+          <button class="btn btn-p btn-b" onclick="_finishRegister()">进入舞力打卡</button>
+        </div>
+        <!-- 步骤3：输入手机号+登录码登录 -->
+        <div id="authStep3" style="display:none">
+          <div class="inp-g">
+            <label class="inp-l">手机号</label>
+            <input type="tel" class="inp" id="authPhone2" placeholder="请输入手机号" maxlength="11">
+          </div>
+          <div class="inp-g">
+            <label class="inp-l">登录码</label>
+            <input type="text" class="inp" id="authCode" placeholder="请输入6位登录码" maxlength="6">
+          </div>
+          <button class="btn btn-p btn-b" onclick="__login()">登录</button>
+          <div class="auth-forget" onclick="_showForget()">忘记登录码？</div>
+        </div>
+        <!-- 忘记登录码 -->
+        <div id="authStep4" style="display:none">
+          <div class="auth-forget-tip">
+            <div style="font-size:32px;margin-bottom:12px">😅</div>
+            <div>登录码已丢失</div>
+            <div style="font-size:13px;color:var(--t3);margin-top:8px">请重新注册，生成新的登录码</div>
+          </div>
+          <button class="btn btn-p btn-b" onclick="_backToStep1()">重新注册</button>
         </div>
       </div>
     </div>
@@ -231,26 +254,19 @@
 </div>
 
 <!-- Scripts (顺序关键: app-core → 模块 → app-init) -->
-<script src="js/utils.js?v=8.3"></script>
-<script src="js/ui.js?v=8.3"></script>
-<script src="js/api.js?v=8.3"></script>
-<script src="js/app-core.js?v=8.3"></script>
-<script src="js/modules/auth.js?v=8.3"></script>
-<script src="js/modules/card.js?v=8.3"></script>
-<script src="js/modules/schedule.js?v=8.3"></script>
-<script src="js/modules/smartSchedule.js?v=8.3"></script>
-<script src="js/modules/checkin.js?v=8.3"></script>
-<script src="js/modules/share.js?v=8.3"></script>
-<script src="js/modules/home.js?v=8.3"></script>
-<script src="js/modules/reminders.js?v=8.3"></script>
-<script src="js/app-init.js?v=8.3"></script>
+<script src="js/utils.js?v=8.4"></script>
+<script src="js/ui.js?v=8.4"></script>
+<script src="js/api.js?v=8.4"></script>
+<script src="js/app-core.js?v=8.4"></script>
+<script src="js/modules/auth.js?v=8.4"></script>
+<script src="js/modules/card.js?v=8.4"></script>
+<script src="js/modules/schedule.js?v=8.4"></script>
+<script src="js/modules/smartSchedule.js?v=8.4"></script>
+<script src="js/modules/checkin.js?v=8.4"></script>
+<script src="js/modules/share.js?v=8.4"></script>
+<script src="js/modules/home.js?v=8.4"></script>
+<script src="js/modules/reminders.js?v=8.4"></script>
+<script src="js/app-init.js?v=8.4"></script>
 
-<script>
-function __login() {
-  const phone = document.getElementById('authPhone')?.value?.trim();
-  const code = document.getElementById('authCode')?.value?.trim();
-  _doLogin(phone, code);
-}
-</script>
 </body>
 </html>

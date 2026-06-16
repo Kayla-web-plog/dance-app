@@ -1,10 +1,143 @@
-// 舞力打卡 - 模块1: 账户体系
-// v4.0 极简酷炫设计
+// 舞力打卡 - 模块1: 账户体系 (Cloudflare API版)
+// v8.4 服务器端验证码 + D1 数据存储
 
-// ---- 登录 ----
+// ---- 登录流程控制 ----
+// 页面加载时检查是否已登录（在app-core.js的init中处理）
 App.loadAuth = async function() {
   console.log('[AUTH] loaded');
 };
+
+// 显示步骤1：输入手机号
+function _showStep1() {
+  document.getElementById('authStep1').style.display = 'block';
+  document.getElementById('authStep2').style.display = 'none';
+  document.getElementById('authStep3').style.display = 'none';
+  document.getElementById('authStep4').style.display = 'none';
+}
+
+// 显示步骤2：显示生成的登录码
+function _showStep2(code) {
+  document.getElementById('authStep1').style.display = 'none';
+  document.getElementById('authStep2').style.display = 'block';
+  document.getElementById('authStep3').style.display = 'none';
+  document.getElementById('authStep4').style.display = 'none';
+  document.getElementById('displayCode').textContent = code;
+}
+
+// 显示步骤3：输入手机号+登录码登录
+function _showStep3() {
+  document.getElementById('authStep1').style.display = 'none';
+  document.getElementById('authStep2').style.display = 'none';
+  document.getElementById('authStep3').style.display = 'block';
+  document.getElementById('authStep4').style.display = 'none';
+}
+
+// 显示步骤4：忘记登录码
+function _showStep4() {
+  document.getElementById('authStep1').style.display = 'none';
+  document.getElementById('authStep2').style.display = 'none';
+  document.getElementById('authStep3').style.display = 'none';
+  document.getElementById('authStep4').style.display = 'block';
+}
+
+// ---- 步骤1：注册（调服务器API生成登录码）----
+async function _doRegister() {
+  const phone = document.getElementById('authPhone')?.value?.trim();
+
+  // 验证手机号
+  if (!phone || phone.length !== 11 || !/^1[3-9]\d{9}$/.test(phone)) {
+    UI.toast('请输入正确的手机号', 'err');
+    return;
+  }
+
+  try {
+    UI.toast('正在生成登录码...', 'ok');
+    const data = await API.post('/api/auth/register', { phone });
+
+    // 保存token到本地（自动登录）
+    U.setToken(data.token);
+    App.user = data.user;
+
+    // 显示生成的登录码
+    _showStep2(data.code);
+
+    console.log('[AUTH] 注册成功:', data.user.nickname);
+  } catch (e) {
+    UI.toast(e.message || '注册失败', 'err');
+  }
+}
+
+// ---- 步骤2：完成注册（自动登录成功）----
+async function _finishRegister() {
+  try {
+    // 已经在 _doRegister 中自动登录了，加载舞蹈卡
+    await App._loadActiveCard();
+    await App.nav('home');
+    UI.toast('欢迎来到舞力打卡！', 'ok');
+  } catch (e) {
+    console.error('[AUTH] finish register error:', e);
+    UI.toast('进入首页失败，请重试', 'err');
+  }
+}
+
+// ---- 步骤3：登录验证（调服务器API）----
+async function __login() {
+  const phone = document.getElementById('authPhone2')?.value?.trim();
+  const code = document.getElementById('authCode')?.value?.trim();
+
+  if (!phone || phone.length !== 11 || !/^1[3-9]\d{9}$/.test(phone)) {
+    UI.toast('请输入正确的手机号', 'err');
+    return;
+  }
+
+  if (!code || code.length !== 6) {
+    UI.toast('请输入6位登录码', 'err');
+    return;
+  }
+
+  try {
+    const data = await API.post('/api/auth/login', { phone, code });
+
+    // 保存token
+    U.setToken(data.token);
+    App.user = data.user;
+
+    // 加载舞蹈卡并进入首页
+    await App._loadActiveCard();
+    await App.nav('home');
+    UI.toast('登录成功！', 'ok');
+    console.log('[AUTH] login success:', data.user.nickname);
+  } catch (e) {
+    UI.toast(e.message || '手机号或登录码错误', 'err');
+  }
+}
+
+// ---- 忘记登录码 ----
+function _showForget() {
+  _showStep4();
+}
+
+// ---- 返回步骤1（重新注册）----
+function _backToStep1() {
+  U.clearToken();
+  App.user = null;
+  App.card = null;
+  _showStep1();
+}
+
+// ---- 退出登录（调服务器API）----
+async function _doLogout() {
+  const ok = await UI.modal('退出登录', '确定要退出登录吗？', '退出', '取消');
+  if (!ok) return;
+
+  try { await API.logout(); } catch (e) { /* ignore */ }
+
+  U.clearToken();
+  App.user = null;
+  App.card = null;
+  await App.nav('auth');
+  UI.toast('已退出', 'ok');
+}
 
 // ---- 个人中心 ----
 App.loadProfile = async function() {
@@ -21,7 +154,7 @@ App.loadProfile = async function() {
       <div class="prof-av">${u.avatar ? `<img src="${u.avatar}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">` : '<svg width="32" height="32" style="color:#fff"><use href="#i-user"/></svg>'}</div>
       <div class="prof-nick" id="profNick">${u.nickname || '未设置'}</div>
       <div class="prof-lv" id="profLevel">
-        ${(u.danceTypes || []).join(' · ') || '未设置舞种'} · 
+        ${(u.danceTypes || []).join(' · ') || '未设置舞种'} ·
         ${({beginner:'入门',elementary:'初级',intermediate:'中级',advanced:'高级'})[u.danceLevel] || '入门'}
       </div>
     </div>
@@ -109,12 +242,13 @@ App._handleAccountDelete = async function() {
   if (!ok) return;
   const confirm2 = await UI.modal('再次确认', '请输入 注销 两字确认', '注销', '取消');
   if (!confirm2) return;
+
   try {
     await API.deleteAccount();
     U.clearToken();
-    this.user = null;
-    this.card = null;
-    await this.nav('auth');
+    App.user = null;
+    App.card = null;
+    await App.nav('auth');
     UI.toast('账号已注销', 'ok');
   } catch (e) {
     UI.toast(e.message || '注销失败', 'err');
