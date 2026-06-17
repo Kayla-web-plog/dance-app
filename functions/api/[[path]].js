@@ -1,12 +1,15 @@
-// 舞力打卡 - Cloudflare Pages Functions 后端 (v8.5)
+// 舞力打卡 - Cloudflare Pages Functions 后端 (v8.5 修复版)
 // 处理所有 /api/* 路由，使用 D1 数据库 + R2 文件存储
 
 // ---------- 辅助函数 ----------
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization' }
-  });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+  };
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function error(msg, status = 400) {
@@ -33,6 +36,7 @@ function generateToken() {
 }
 
 // 确保需要认证的路由有 userId
+// 返回：{ userId } 成功；{ error: Response } 失败
 async function requireAuth(req, env) {
   const userId = await getUserId(req, env);
   if (!userId) return { error: json({ error: '未登录或登录已过期' }, 401) };
@@ -57,14 +61,47 @@ export async function onRequest(context) {
 
   // CORS preflight
   if (method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization' } });
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+      }
+    });
   }
 
   // API 路由匹配
   try {
+
     // GET /api/health
     if (path === '/api/health' && method === 'GET') {
       return json({ status: 'ok', db: 'connected' });
+    }
+
+    // POST /api/auth/register
+    if (path === '/api/auth/register' && method === 'POST') {
+      const { phone } = await getBody(request);
+      if (!phone || !/^1\d{10}$/.test(phone)) return error('请输入正确手机号');
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const now = Date.now();
+      let user = await env.DB.prepare('SELECT * FROM users WHERE phone = ?').bind(phone).first();
+      if (user) {
+        await env.DB.prepare('UPDATE users SET loginCode = ?, updatedAt = ? WHERE id = ?').bind(code, now, user.id).run();
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(phone, '舞者' + phone.slice(-4), 'beginner', JSON.stringify([]), JSON.stringify([]), code, now, now).run();
+        const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
+        user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.id).first();
+      }
+      const token = generateToken();
+      await env.DB.prepare('INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, now).run();
+      user.danceTypes = JSON.parse(user.danceTypes || '[]');
+      user.freeTime = JSON.parse(user.freeTime || '[]');
+      delete user.loginCode;
+      return json({ token, user, code });
     }
 
     // POST /api/auth/login
@@ -75,66 +112,7 @@ export async function onRequest(context) {
       if (!user) return error('该手机号未注册，请先生成登录码');
       if (user.loginCode !== code) return error('登录码错误');
       const token = generateToken();
-      await env.DB.prepare('INSERT OR REPLACE INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, Date.now()).run();
-      user.danceTypes = JSON.parse(user.danceTypes || '[]');
-      user.freeTime = JSON.parse(user.freeTime || '[]');
-      delete user.loginCode;
-      return json({ token, user });
-    }
-
-    // POST /api/auth/register
-    if (path === '/api/auth/register' && method === 'POST') {
-      const { phone } = await getBody(request);
-      if (!phone || !/^1\d{10}$/.test(phone)) return error('请输入正确手机号');
-
-      // 生成6位登录码
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const now = Date.now();
-
-      // 查找是否已有用户
-      let user = await env.DB.prepare('SELECT * FROM users WHERE phone = ?').bind(phone).first();
-      if (user) {
-        // 更新登录码
-        await env.DB.prepare('UPDATE users SET loginCode = ?, updatedAt = ? WHERE id = ?').bind(code, now, user.id).run();
-      } else {
-        // 创建新用户
-        const result = await env.DB.prepare(`
-          INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(phone, '舞者' + phone.slice(-4), 'beginner', '[]', '[]', code, now, now).run();
-        user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(result.meta.last_row_id).first();
-      }
-
-      const token = generateToken();
-      await env.DB.prepare('INSERT OR REPLACE INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, now).run();
-      user.danceTypes = JSON.parse(user.danceTypes || '[]');
-      user.freeTime = JSON.parse(user.freeTime || '[]');
-      delete user.loginCode;
-      return json({ token, user, code });
-    }
-
-    // POST /api/auth/guest - 免登录体验
-    if (path === '/api/auth/guest' && method === 'POST') {
-      const guestPhone = '10000000000';
-      const now = Date.now();
-      let user = await env.DB.prepare('SELECT * FROM users WHERE phone = ?').bind(guestPhone).first();
-      if (!user) {
-        const result = await env.DB.prepare(`
-          INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(guestPhone, '体验用户', 'intermediate',
-          '["Jazz","K-pop","Hiphop","舞蹈通识"]', '["wed-eve","thu-eve","fri-eve","sat-day","sun-day"]',
-          '000000', now, now).run();
-        user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(result.meta.last_row_id).first();
-        // 创建默认舞蹈卡
-        await env.DB.prepare(`
-          INSERT INTO cards (userId, name, type, totalPrice, targetPrice, startDate, endDate, usedLessons, status, createdAt, updatedAt)
-          VALUES (?, '半年卡', 'period', 4800, 40, ?, ?, 0, 'active', ?, ?)
-        `).bind(user.id, new Date().toISOString().slice(0,10),
-          new Date(Date.now() + 180 * 86400000).toISOString().slice(0,10), now, now).run();
-      }
-      const token = generateToken();
-      await env.DB.prepare('INSERT OR REPLACE INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, now).run();
+      await env.DB.prepare('INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, Date.now()).run();
       user.danceTypes = JSON.parse(user.danceTypes || '[]');
       user.freeTime = JSON.parse(user.freeTime || '[]');
       delete user.loginCode;
@@ -150,48 +128,62 @@ export async function onRequest(context) {
       return json({ success: true });
     }
 
+    // POST /api/auth/guest
+    if (path === '/api/auth/guest' && method === 'POST') {
+      const guestPhone = '10000000000';
+      const now = Date.now();
+      let user = await env.DB.prepare('SELECT * FROM users WHERE phone = ?').bind(guestPhone).first();
+      if (!user) {
+        await env.DB.prepare(`
+          INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(guestPhone, '体验用户', 'intermediate',
+          JSON.stringify(['Jazz','K-pop','Hiphop','舞蹈通识']),
+          JSON.stringify(['wed-eve','thu-eve','fri-eve','sat-day','sun-day']),
+          '000000', now, now).run();
+        const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
+        user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.id).first();
+        await env.DB.prepare(`
+          INSERT INTO cards (userId, name, type, totalPrice, targetPrice, startDate, endDate, usedLessons, status, createdAt, updatedAt)
+          VALUES (?, '半年卡', 'period', 4800, 40, ?, ?, 0, 'active', ?, ?)
+        `).bind(user.id, new Date().toISOString().slice(0,10),
+          new Date(Date.now() + 180 * 86400000).toISOString().slice(0,10), now, now).run();
+      }
+      const token = generateToken();
+      await env.DB.prepare('INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, now).run();
+      user.danceTypes = JSON.parse(user.danceTypes || '[]');
+      user.freeTime = JSON.parse(user.freeTime || '[]');
+      delete user.loginCode;
+      return json({ token, user });
+    }
+
     // ===== 文件上传到 R2 =====
-    // POST /api/upload - 上传照片/视频到 R2，返回公共 URL
+    // POST /api/upload
     if (path === '/api/upload' && method === 'POST') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
-
       try {
         const formData = await request.formData();
         const file = formData.get('file');
         if (!file || typeof file === 'string') return error('请选择文件');
-
         const fileName = formData.get('fileName') || file.name || `file_${Date.now()}`;
         const fileType = file.type || '';
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime'];
-        if (!allowedTypes.some(t => fileType.startsWith(t.split('/')[0]))) {
+        if (fileType && !fileType.startsWith('image/') && !fileType.startsWith('video/')) {
           return error('仅支持图片和视频文件');
         }
-
-        // 生成唯一文件名：userId/类型/时间戳-随机.后缀
         const ext = fileName.includes('.') ? fileName.split('.').pop() : (fileType.startsWith('image') ? 'jpg' : 'mp4');
         const typeFolder = fileType.startsWith('image') ? 'photos' : 'videos';
         const uniqueName = `${auth.userId}/${typeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-        // 上传到 R2
         await env.BUCKET.put(uniqueName, file.stream(), {
-          httpMetadata: { contentType: fileType || (fileType.startsWith('image') ? 'image/jpeg' : 'video/mp4') },
-          // 公开访问：通过 Cloudflare R2 公共 URL
+          httpMetadata: { contentType: fileType || (fileType.startsWith('image') ? 'image/jpeg' : 'video/mp4') }
         });
-
-        // 构建公共访问 URL（需要启用 R2 公共访问）
-        // 格式：https://pub-<account_hash>.r2.dev/<key>
-        // 或者通过自定义域：https://your-domain.com/<key>
-        // 这里先返回 R2 对象 key，前端拼接完整 URL
-        const fileUrl = `/r2/${uniqueName}`; // 通过 Workers 代理访问
         return json({ url: uniqueName, success: true });
       } catch (e) {
-        console.error('[UPLOAD ERROR]', e.message);
         return error('文件上传失败: ' + e.message, 500);
       }
     }
 
-    // GET /api/r2/:key - 代理访问 R2 文件（解决公共访问问题）
+    // GET /api/r2/:key - 代理访问 R2 文件
     const r2Match = path.match(/^\/api\/r2\/(.+)$/);
     if (r2Match && method === 'GET') {
       try {
@@ -199,14 +191,18 @@ export async function onRequest(context) {
         const object = await env.BUCKET.get(key);
         if (!object) return error('文件不存在', 404);
         const headers = new Headers();
-        object.httpMetadata?.contentType && headers.set('Content-Type', object.httpMetadata.contentType);
+        if (object.httpMetadata && object.httpMetadata.contentType) {
+          headers.set('Content-Type', object.httpMetadata.contentType);
+        }
         headers.set('Cache-Control', 'public, max-age=31536000');
+        headers.set('Access-Control-Allow-Origin', '*');
         return new Response(object.body, { headers });
       } catch (e) {
         return error('文件读取失败: ' + e.message, 500);
       }
     }
 
+    // ===== 用户路由 =====
     // GET /api/users/profile
     if (path === '/api/users/profile' && method === 'GET') {
       const auth = await requireAuth(request, env);
@@ -241,9 +237,8 @@ export async function onRequest(context) {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
       const cards = await env.DB.prepare('SELECT id FROM cards WHERE userId = ?').bind(auth.userId).all();
-      const cardIds = cards.results.map(c => c.id);
-      for (const cid of cardIds) {
-        await env.DB.prepare('DELETE FROM checkins WHERE cardId = ?').bind(cid).run();
+      for (const c of cards.results) {
+        await env.DB.prepare('DELETE FROM checkins WHERE cardId = ?').bind(c.id).run();
       }
       await env.DB.prepare('DELETE FROM cards WHERE userId = ?').bind(auth.userId).run();
       await env.DB.prepare('DELETE FROM sessions WHERE userId = ?').bind(auth.userId).run();
@@ -278,7 +273,7 @@ export async function onRequest(context) {
       });
     }
 
-    // GET /api/cards - 获取所有舞蹈卡
+    // GET /api/cards
     if (path === '/api/cards' && method === 'GET') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
@@ -286,27 +281,26 @@ export async function onRequest(context) {
       return json({ cards: cards.results });
     }
 
-    // POST /api/cards - 创建舞蹈卡
+    // POST /api/cards
     if (path === '/api/cards' && method === 'POST') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
       const { name, type, totalPrice, targetPrice, startDate, endDate, totalSessions } = await getBody(request);
       const now = Date.now();
-      const result = await env.DB.prepare(`
+      await env.DB.prepare(`
         INSERT INTO cards (userId, name, type, totalPrice, targetPrice, startDate, endDate, totalSessions, usedLessons, status, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'active', ?, ?)
       `).bind(auth.userId, name || '我的舞蹈卡', type || 'period', totalPrice || 0, targetPrice || 40,
         startDate || null, endDate || null, totalSessions || 0, now, now).run();
-      const card = await env.DB.prepare('SELECT * FROM cards WHERE id = ?').bind(result.meta.last_row_id).first();
+      const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
+      const card = await env.DB.prepare('SELECT * FROM cards WHERE id = ?').bind(row.id).first();
       return json({ card });
     }
 
-    // 匹配 /api/cards/:id (数字ID)
+    // 匹配 /api/cards/:id
     const cardIdMatch = path.match(/^\/api\/cards\/(\d+)$/);
     if (cardIdMatch) {
       const cardId = parseInt(cardIdMatch[1]);
-
-      // GET /api/cards/:id
       if (method === 'GET') {
         const auth = await requireAuth(request, env);
         if (auth.error) return auth.error;
@@ -314,8 +308,6 @@ export async function onRequest(context) {
         if (!card) return error('舞蹈卡不存在', 404);
         return json({ card });
       }
-
-      // PUT /api/cards/:id
       if (method === 'PUT') {
         const auth = await requireAuth(request, env);
         if (auth.error) return auth.error;
@@ -332,8 +324,6 @@ export async function onRequest(context) {
         const card = await env.DB.prepare('SELECT * FROM cards WHERE id = ?').bind(cardId).first();
         return json({ card });
       }
-
-      // DELETE /api/cards/:id
       if (method === 'DELETE') {
         const auth = await requireAuth(request, env);
         if (auth.error) return auth.error;
@@ -343,7 +333,7 @@ export async function onRequest(context) {
       }
     }
 
-    // POST /api/cards/recover - 缺课补救计算
+    // POST /api/cards/recover
     if (path === '/api/cards/recover' && method === 'POST') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
@@ -426,7 +416,6 @@ export async function onRequest(context) {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
       const cardId = url.searchParams.get('cardId');
-      const limit = parseInt(url.searchParams.get('limit'));
       let query, params;
       if (cardId) {
         query = 'SELECT * FROM checkins WHERE cardId = ? ORDER BY courseDate DESC';
@@ -435,10 +424,8 @@ export async function onRequest(context) {
         query = 'SELECT * FROM checkins WHERE cardId IN (SELECT id FROM cards WHERE userId = ?) ORDER BY courseDate DESC';
         params = [auth.userId];
       }
-      if (limit > 0 && limit <= 1000) {
-        // D1不支持LIMIT ?语法，需要安全拼接
-        query += ' LIMIT ' + limit;
-      }
+      const limit = parseInt(url.searchParams.get('limit'));
+      if (limit > 0 && limit <= 1000) query += ' LIMIT ' + limit;
       const checkins = await env.DB.prepare(query).bind(...params).all();
       return json({ checkins: checkins.results });
     }
@@ -456,7 +443,7 @@ export async function onRequest(context) {
         const today = new Date();
         courseDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
       }
-      const result = await env.DB.prepare(`
+      await env.DB.prepare(`
         INSERT INTO checkins (cardId, templateId, courseDate, courseName, status, absentReason, photo, location, note, video, stars, tags, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(data.cardId, data.templateId || null, courseDate, data.courseName || '',
@@ -465,7 +452,8 @@ export async function onRequest(context) {
       if (data.status === 'done') {
         await env.DB.prepare('UPDATE cards SET usedLessons = usedLessons + 1, updatedAt = ? WHERE id = ?').bind(now, data.cardId).run();
       }
-      const checkin = await env.DB.prepare('SELECT * FROM checkins WHERE id = ?').bind(result.meta.last_row_id).first();
+      const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
+      const checkin = await env.DB.prepare('SELECT * FROM checkins WHERE id = ?').bind(row.id).first();
       return json({ checkin });
     }
 
@@ -473,8 +461,6 @@ export async function onRequest(context) {
     const ciMatch = path.match(/^\/api\/checkins\/(\d+)$/);
     if (ciMatch) {
       const ciId = parseInt(ciMatch[1]);
-
-      // PUT /api/checkins/:id
       if (method === 'PUT') {
         const auth = await requireAuth(request, env);
         if (auth.error) return auth.error;
@@ -492,13 +478,11 @@ export async function onRequest(context) {
         }
         await env.DB.prepare(`UPDATE checkins SET courseName=?, note=?, stars=?, tags=?, photo=?, video=?, updatedAt=? WHERE id=?`)
           .bind(data.courseName ?? existing.courseName, data.note ?? existing.note, data.stars ?? existing.stars,
-            data.tags ? JSON.stringify(data.tags) : existing.tags, data.photo ?? existing.photo,
+            JSON.stringify(data.tags ?? JSON.parse(existing.tags || '[]')), data.photo ?? existing.photo,
             data.video ?? existing.video, now, ciId).run();
         const checkin = await env.DB.prepare('SELECT * FROM checkins WHERE id = ?').bind(ciId).first();
         return json({ checkin });
       }
-
-      // DELETE /api/checkins/:id
       if (method === 'DELETE') {
         const auth = await requireAuth(request, env);
         if (auth.error) return auth.error;
@@ -519,11 +503,11 @@ export async function onRequest(context) {
     if (path === '/api/templates/week' && method === 'GET') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
-      const templates = await env.DB.prepare('SELECT * FROM templates ORDER BY weekday, time').bind().all();
-      const start = url.searchParams.get('start');
-      const end = url.searchParams.get('end');
-      const startDate = start ? new Date(start) : new Date();
-      const endDate = end ? new Date(end) : new Date();
+      const templates = await env.DB.prepare('SELECT * FROM templates ORDER BY weekday, time').all();
+      const startParam = url.searchParams.get('start');
+      const endParam = url.searchParams.get('end');
+      const startDate = startParam ? new Date(startParam) : (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d; })();
+      const endDate = endParam ? new Date(endParam) : (() => { const d = new Date(); d.setDate(d.getDate() + (6 - d.getDay())); return d; })();
       const days = [];
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const wd = d.getDay();
@@ -538,7 +522,7 @@ export async function onRequest(context) {
     if (path === '/api/templates' && method === 'GET') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
-      const templates = await env.DB.prepare('SELECT * FROM templates ORDER BY weekday, time').bind().all();
+      const templates = await env.DB.prepare('SELECT * FROM templates ORDER BY weekday, time').all();
       return json({ templates: templates.results });
     }
 
@@ -550,11 +534,12 @@ export async function onRequest(context) {
       if (weekday === undefined || weekday < 0 || weekday > 6) return error('请选择正确的星期');
       if (!courseName || !courseName.trim()) return error('课程名称不能为空');
       const now = Date.now();
-      const result = await env.DB.prepare(`
+      await env.DB.prepare(`
         INSERT INTO templates (weekday, time, courseName, teacher, danceType, level, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(weekday, time || '', courseName, teacher || '', danceType || '', level || '', now, now).run();
-      const template = await env.DB.prepare('SELECT * FROM templates WHERE id = ?').bind(result.meta.last_row_id).first();
+      const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
+      const template = await env.DB.prepare('SELECT * FROM templates WHERE id = ?').bind(row.id).first();
       return json({ template });
     }
 
@@ -590,12 +575,12 @@ export async function onRequest(context) {
       }
     }
 
-    // POST /api/smart/generate - 智能排课
+    // POST /api/smart/generate
     if (path === '/api/smart/generate' && method === 'POST') {
       const auth = await requireAuth(request, env);
       if (auth.error) return auth.error;
       const { target, preferredTypes } = await getBody(request);
-      let templates = await env.DB.prepare('SELECT * FROM templates ORDER BY weekday, time').bind().all();
+      const templates = await env.DB.prepare('SELECT * FROM templates ORDER BY weekday, time').all();
       let matched = templates.results;
       if (preferredTypes && preferredTypes.length > 0) {
         matched = matched.filter(t => preferredTypes.includes(t.danceType));
@@ -624,11 +609,12 @@ export async function onRequest(context) {
       if (cards.results.length === 0) return json({ achievements: [] });
       let totalDone = 0, maxStreak = 0, perfectStreak = 0, totalSaved = 0;
       const allCheckins = [];
-      let allDoneDates = [];
-      let allAbsentDates = new Set();
+      const allDoneDates = [];
+      const allAbsentDates = new Set();
       for (const card of cards.results) {
         const cks = await env.DB.prepare('SELECT courseDate, status, stars FROM checkins WHERE cardId = ? ORDER BY courseDate').bind(card.id).all();
         const done = cks.results.filter(c => c.status === 'done');
+        allCheckins.push(...cks.results);
         allDoneDates.push(...done.map(c => c.courseDate));
         cks.results.filter(c => c.status === 'absent').forEach(c => allAbsentDates.add(c.courseDate));
         totalDone += done.length;
@@ -671,7 +657,7 @@ export async function onRequest(context) {
           { id: 'saved100', name: '省钱达人', icon: '💰', earned: totalSaved >= 100, desc: '累计省钱超100元' },
           { id: 'saved1000', name: '省钱大师', icon: '💎', earned: totalSaved >= 1000, desc: '累计省钱超1000元' },
           { id: '50lessons', name: '50节课', icon: '🏅', earned: totalDone >= 50, desc: '累计完成50节课' },
-          { id: '100lessons', name: '100节课', icon: '👑', earned: totalDone >= 100, desc: '累计完成100节课' },
+          { id: '100lessons', name: '100节课', icon: '🎖', earned: totalDone >= 100, desc: '累计完成100节课' },
           { id: 'perfect10', name: '十全十美', icon: '💫', earned: perfectStreak >= 10, desc: '连续10次五星好评' }
         ]
       });
@@ -691,12 +677,11 @@ export async function onRequest(context) {
 
     return error('API路径不存在: ' + method + ' ' + path, 404);
   } catch (err) {
-    console.error('[WORKER ERROR]', err.message);
+    console.error('[WORKER ERROR]', err.message, err.stack);
     return error('服务器内部错误: ' + err.message, 500);
   }
 }
 
-// 也支持 export default 方式
 export default {
   async fetch(request, env) {
     return onRequest({ request, env });
