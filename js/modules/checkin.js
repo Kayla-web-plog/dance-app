@@ -1,25 +1,11 @@
-// 舞力打卡 - 打卡/补卡 v8.5
-// 修复: 日历日期→当日课表→选课补卡 | 文件上传R2
+// 舞力打卡 - 打卡/补卡 v8.6
+// 修改: 移除R2上传，改为Base64直接存储
 
 App._checkinTemplate = null;
-App._photoUrl = null;    // 改为存 R2 URL
-App._videoUrl = null;    // 改为存 R2 URL
+App._photoData = null;   // 存 Base64 数据
+App._videoData = null;   // 存 Base64 数据（暂不支持大视频）
 App._stars = 0;
 App._backfillDate = null;
-
-// ===== 文件上传到 R2 的辅助函数 =====
-App._uploadToR2 = async function(file, customName) {
-  try {
-    UI.toast('正在上传文件...', 'ok');
-    const result = await API.uploadFile(file, customName);
-    UI.toast('文件上传成功', 'ok');
-    return result.url; // 返回 R2 对象 key
-  } catch (e) {
-    console.error('[UPLOAD]', e);
-    UI.toast('文件上传失败: ' + e.message, 'err');
-    return null;
-  }
-};
 
 App.loadCheckin = async function(params) {
   const cid = document.getElementById('checkinContent');
@@ -143,10 +129,8 @@ App._renderBackfillForm = async function(cid) {
     <div class="card">
       <div class="inp-g"><label class="inp-l">课程名称</label><input class="inp" id="bfCourseName" value="${tpl.courseName}"></div>
       <div class="inp-g"><label class="inp-l">打卡照片 (可选)</label>
-        <div class="photo-box" id="bfPhotoBox" onclick="App._capturePhoto()"><span class="photo-place"><svg width="28" height="28" style="color:var(--clr);margin-bottom:4px"><use href="#i-camera"/></svg><div style="font-size:12px">拍照/上传</div></span></div></div>
-      <div class="inp-g"><label class="inp-l">打卡视频 (可选)</label>
-        <div class="photo-box" id="bfVideoBox" onclick="document.getElementById('bfVideoInput').click()"><span class="photo-place" id="bfVideoPlace"><svg width="28" height="28" style="color:var(--accent);margin-bottom:4px"><use href="#i-camera"/></svg><div style="font-size:12px">上传视频</div></span></div>
-        <input type="file" id="bfVideoInput" accept="video/*" style="display:none" onchange="App._handleVideo(this,'bfVideoPlace')"></div>
+        <div class="photo-box" id="bfPhotoBox" onclick="App._capturePhoto()"><span class="photo-place"><svg width="28" height="28" style="color:var(--clr);margin-bottom:4px"><use href="#i-camera"/></svg><div style="font-size:12px">拍照/上传</div></span></div>
+        <input type="file" id="bfPhotoInput" accept="image/*" style="display:none" onchange="App._handlePhoto(this,'bfPhotoBox')"></div>
       <div class="inp-g"><label class="inp-l">文字感受</label><textarea class="inp" id="bfNote" rows="2" placeholder="上课感受..."></textarea></div>
       ${App._buildWeakTagGroups('bfNote')}
       <div class="inp-g"><label class="inp-l">自我评分</label><div style="display:flex;gap:8px;font-size:28px;cursor:pointer" id="bfStarRow">${[1,2,3,4,5].map(s=>`<span data-s="${s}" style="color:var(--t4)">★</span>`).join('')}</div></div>
@@ -180,8 +164,7 @@ App._renderCheckinForm = async function(cid, tid) {
         <button class="btn btn-p" style="flex:1" onclick="App._showDone()"><svg width="16" height="16"><use href="#i-check"/></svg> 去上课了</button>
         <button class="btn btn-o" style="flex:1" onclick="App._showAbsent()">缺课</button></div>
       <div id="checkinDone" style="display:none"><div class="card">
-        <div class="inp-g"><label class="inp-l">打卡照片 (可选)</label><div class="photo-box" id="photoBox" onclick="App._capturePhoto()"><span class="photo-place"><svg width="28" height="28" style="color:var(--clr);margin-bottom:4px"><use href="#i-camera"/></svg><div style="font-size:12px">拍照/上传</div></span></div></div>
-        <div class="inp-g"><label class="inp-l">打卡视频 (可选)</label><div class="photo-box" id="videoBox" onclick="document.getElementById('videoInput').click()"><span class="photo-place" id="videoPlace"><svg width="28" height="28" style="color:var(--accent);margin-bottom:4px"><use href="#i-camera"/></svg><div style="font-size:12px">上传视频</div></span></div><input type="file" id="videoInput" accept="video/*" style="display:none" onchange="App._handleVideo(this,'videoPlace')"></div>
+        <div class="inp-g"><label class="inp-l">打卡照片 (可选)</label><div class="photo-box" id="photoBox" onclick="App._capturePhoto()"><span class="photo-place"><svg width="28" height="28" style="color:var(--clr);margin-bottom:4px"><use href="#i-camera"/></svg><div style="font-size:12px">拍照/上传</div></span></div><input type="file" id="photoInput" accept="image/*" style="display:none" onchange="App._handlePhoto(this,'photoBox')"></div>
         <div class="inp-g"><label class="inp-l">文字感受</label><textarea class="inp" id="checkinNote" rows="2" placeholder="今天上课感觉怎么样..."></textarea></div>
         ${App._buildWeakTagGroups('checkinNote')}
         <div class="inp-g"><label class="inp-l">自我评分</label><div style="display:flex;gap:8px;font-size:28px;cursor:pointer" id="starRow">${[1,2,3,4,5].map(s=>`<span data-s="${s}" style="color:var(--t4)">★</span>`).join('')}</div></div>
@@ -202,25 +185,10 @@ App._renderCheckinForm = async function(cid, tid) {
   } catch (e) { cid.innerHTML = UI.empty('❌', '加载失败', e.message); }
 };
 
-// 视频处理
-App._handleVideo = async function(input, placeId) {
-  const file = input.files[0];
-  if (!file) return;
-  if (file.size > 50*1024*1024) { UI.toast('视频不能超过50MB','err'); return; }
-
-  // 上传到 R2
-  const url = await this._uploadToR2(file, `video_${Date.now()}.${file.name.split('.').pop()}`);
-  if (url) {
-    this._videoUrl = url;
-    const p = document.getElementById(placeId);
-    if (p) p.innerHTML = `<svg width="20" height="20" style="color:var(--green)"><use href="#i-check"/></svg><div style="font-size:12px;color:var(--green);margin-top:4px">${file.name}</div>`;
-  } else {
-    // 上传失败，保留本地文件引用（提交时再尝试上传）
-    this._videoUrl = null;
-    this._videoFile = file; // 暂存文件对象，提交时上传
-    const p = document.getElementById(placeId);
-    if (p) p.innerHTML = `<svg width="20" height="20" style="color:var(--orange)"><use href="#i-warn"/></svg><div style="font-size:12px;color:var(--orange);margin-top:4px">${file.name} (待上传)</div>`;
-  }
+// 视频处理（暂不支持，提示用户）
+App._handleVideo = function(input, placeId) {
+  UI.toast('视频上传暂不支持，请只上传照片', 'err');
+  input.value = ''; // 清空选择
 };
 
 // 拍照
@@ -229,33 +197,91 @@ App._capturePhoto = async function() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     const video = document.createElement('video'); video.srcObject = stream; await video.play();
-    const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    const canvas = document.createElement('canvas');
+    // 压缩照片：限制最大宽度800px
+    const maxWidth = 800;
+    let width = video.videoWidth;
+    let height = video.videoHeight;
+    if (width > maxWidth) {
+      height = (height * maxWidth) / width;
+      width = maxWidth;
+    }
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(video, 0, 0, width, height);
     stream.getTracks().forEach(t=>t.stop());
 
-    // 将 canvas 转为 Blob → File → 上传 R2
-    canvas.toBlob(async (blob) => {
-      if (!blob) { UI.toast('拍照失败，请重试', 'err'); return; }
-      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const url = await this._uploadToR2(file, `photo_${Date.now()}.jpg`);
-      if (url) {
-        this._photoUrl = url;
-        const box = document.getElementById(boxId);
-        if (box) { box.innerHTML = `<img src="/api/r2/${url}" style="width:100%;height:100%;object-fit:cover">`; box.classList.add('has'); }
-      } else {
-        // 上传失败，使用本地预览（提交时再上传）
-        this._photoUrl = null;
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        const box = document.getElementById(boxId);
-        if (box) { box.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover">`; box.classList.add('has'); }
-      }
-    }, 'image/jpeg', 0.8);
-  } catch(e) {
-    // 拍照失败，使用演示模式
-    this._photoUrl = null;
+    // 转为 Base64，压缩质量 0.6
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    this._photoData = dataUrl; // 存储 Base64
+    this._videoData = null; // 清空视频数据
+
     const box = document.getElementById(boxId);
-    if (box) { box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%"><svg width="32" height="32" style="color:var(--clr)"><use href="#i-camera"/></svg><span style="font-size:12px;color:var(--t3)">(拍照演示模式)</span></div>`; box.classList.add('has'); }
+    if (box) {
+      box.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover">`;
+      box.classList.add('has');
+    }
+    UI.toast('照片已准备好', 'ok');
+  } catch(e) {
+    console.error('[CAPTURE]', e);
+    UI.toast('拍照失败，请尝试上传照片', 'err');
+    // 触发文件选择作为备选
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (ev) => App._handlePhoto(ev.target, boxId);
+    input.click();
   }
+};
+
+// 处理照片文件上传
+App._handlePhoto = async function(input, boxId) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { UI.toast('照片不能超过5MB', 'err'); return; }
+
+  try {
+    // 压缩照片
+    const compressed = await App._compressImage(file, 800, 0.6);
+    App._photoData = compressed; // 存储 Base64
+    App._videoData = null;
+
+    const box = document.getElementById(boxId);
+    if (box) {
+      box.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover">`;
+      box.classList.add('has');
+    }
+    UI.toast('照片已准备好', 'ok');
+  } catch(e) {
+    console.error('[PHOTO]', e);
+    UI.toast('照片处理失败', 'err');
+  }
+};
+
+// 压缩图片：返回 Base64
+App._compressImage = function(file, maxWidth = 800, quality = 0.6) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 };
 
 // 提交补卡
@@ -267,23 +293,19 @@ App._submitBackfill = async function() {
   const note = document.getElementById('bfNote')?.value?.trim()||'';
   const tags = [...document.querySelectorAll('#bfTagRow .chip.on')].map(c=>c.dataset.t);
 
-  // 如果照片/视频还没上传到 R2，先上传
-  if (this._photoData && !this._photoUrl) {
-    UI.toast('正在上传照片...', 'ok');
-    // _photoData 是 Base64，需要转为 File
-    const blob = await (await fetch(this._photoData)).blob();
-    const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-    this._photoUrl = await this._uploadToR2(file, `photo_${Date.now()}.jpg`);
-  }
-  if (this._videoData && !this._videoUrl) {
-    UI.toast('正在上传视频...', 'ok');
-    const blob = await (await fetch(this._videoData)).blob();
-    const file = new File([blob], `video_${Date.now()}.mp4`, { type: 'video/mp4' });
-    this._videoUrl = await this._uploadToR2(file, `video_${Date.now()}.mp4`);
-  }
-
   try {
-    await API.post('/api/checkins', { cardId:this.card.id, templateId:this._checkinTemplate?.id, courseName, courseDate:this._backfillDate, status:'done', photo:this._photoUrl||'', video:this._videoUrl||'', note, stars:this._stars, tags });
+    await API.post('/api/checkins', {
+      cardId: this.card.id,
+      templateId: this._checkinTemplate?.id,
+      courseName,
+      courseDate: this._backfillDate,
+      status: 'done',
+      photo: this._photoData || '', // 直接发送 Base64
+      video: '', // 暂不支持视频
+      note,
+      stars: this._stars,
+      tags
+    });
     UI.toast(`补卡成功! ${this._backfillDate}`,'ok');
     setTimeout(()=>this.nav('checkinHistory'),500);
   } catch(e) { UI.toast(e.message||'补卡失败','err'); }
@@ -297,26 +319,18 @@ App._submitCheckin = async function() {
   const note = document.getElementById('checkinNote')?.value?.trim()||'';
   const tags = [...document.querySelectorAll('#tagRow .chip.on')].map(c=>c.dataset.t);
 
-  // 如果照片/视频还没上传到 R2，先上传
-  if (this._photoData && !this._photoUrl) {
-    UI.toast('正在上传照片...', 'ok');
-    try {
-      const blob = await (await fetch(this._photoData)).blob();
-      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      this._photoUrl = await this._uploadToR2(file, `photo_${Date.now()}.jpg`);
-    } catch(e) { console.error('[UPLOAD PHOTO]', e); }
-  }
-  if (this._videoData && !this._videoUrl) {
-    UI.toast('正在上传视频...', 'ok');
-    try {
-      const blob = await (await fetch(this._videoData)).blob();
-      const file = new File([blob], `video_${Date.now()}.mp4`, { type: 'video/mp4' });
-      this._videoUrl = await this._uploadToR2(file, `video_${Date.now()}.mp4`);
-    } catch(e) { console.error('[UPLOAD VIDEO]', e); }
-  }
-
   try {
-    await API.post('/api/checkins', { cardId:this.card.id, templateId:this._checkinTemplate?.id, courseName:this._checkinTemplate?.courseName||'舞蹈课', status:'done', photo:this._photoUrl||'', video:this._videoUrl||'', note, stars:this._stars, tags });
+    await API.post('/api/checkins', {
+      cardId: this.card.id,
+      templateId: this._checkinTemplate?.id,
+      courseName: this._checkinTemplate?.courseName||'舞蹈课',
+      status: 'done',
+      photo: this._photoData || '', // 直接发送 Base64
+      video: '', // 暂不支持视频
+      note,
+      stars: this._stars,
+      tags
+    });
     // 激励动画
     App._showIncentiveToast();
     setTimeout(()=>App.nav('home'),1500);
