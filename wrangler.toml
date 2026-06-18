@@ -11,8 +11,7 @@ binding = "DB"
 database_name = "dance-app-db"
 database_id = "c9ef5e3b-caaf-4b46-a5b5-7720a201e17a"
 
-# R2 存储桶绑定（暂未启用，需绑卡后才能启用）
-# [[r2_buckets]]
-# binding = "BUCKET"
-# bucket_name = "dance-app-files"
-# preview_bucket_name = "dance-app-files-preview"
+# R2 存储桶绑定（需先在 Cloudflare 控制台创建存储桶）
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "dance-app-files"

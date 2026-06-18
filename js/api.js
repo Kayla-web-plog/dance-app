@@ -143,6 +143,31 @@ const API = {
     return this.del(path);
   },
 
+  // ===== 文件上传到 R2 =====
+  async uploadFile(file, fileName) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (fileName) formData.append('fileName', fileName);
+
+    const token = U.getToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`${this.BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || '上传失败');
+      return json;
+    } catch (err) {
+      console.error('[API.uploadFile]', err);
+      throw err;
+    }
+  },
+
   // ===== 账户相关 =====
   login(phone, code) {
     return this.post('/api/auth/login', { phone, code });
