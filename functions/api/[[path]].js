@@ -157,51 +157,6 @@ export async function onRequest(context) {
       return json({ token, user });
     }
 
-    // ===== 文件上传到 R2 =====
-    // POST /api/upload
-    if (path === '/api/upload' && method === 'POST') {
-      const auth = await requireAuth(request, env);
-      if (auth.error) return auth.error;
-      try {
-        const formData = await request.formData();
-        const file = formData.get('file');
-        if (!file || typeof file === 'string') return error('请选择文件');
-        const fileName = formData.get('fileName') || file.name || `file_${Date.now()}`;
-        const fileType = file.type || '';
-        if (fileType && !fileType.startsWith('image/') && !fileType.startsWith('video/')) {
-          return error('仅支持图片和视频文件');
-        }
-        const ext = fileName.includes('.') ? fileName.split('.').pop() : (fileType.startsWith('image') ? 'jpg' : 'mp4');
-        const typeFolder = fileType.startsWith('image') ? 'photos' : 'videos';
-        const uniqueName = `${auth.userId}/${typeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        await env.BUCKET.put(uniqueName, file.stream(), {
-          httpMetadata: { contentType: fileType || (fileType.startsWith('image') ? 'image/jpeg' : 'video/mp4') }
-        });
-        return json({ url: uniqueName, success: true });
-      } catch (e) {
-        return error('文件上传失败: ' + e.message, 500);
-      }
-    }
-
-    // GET /api/r2/:key - 代理访问 R2 文件
-    const r2Match = path.match(/^\/api\/r2\/(.+)$/);
-    if (r2Match && method === 'GET') {
-      try {
-        const key = decodeURIComponent(r2Match[1]);
-        const object = await env.BUCKET.get(key);
-        if (!object) return error('文件不存在', 404);
-        const headers = new Headers();
-        if (object.httpMetadata && object.httpMetadata.contentType) {
-          headers.set('Content-Type', object.httpMetadata.contentType);
-        }
-        headers.set('Cache-Control', 'public, max-age=31536000');
-        headers.set('Access-Control-Allow-Origin', '*');
-        return new Response(object.body, { headers });
-      } catch (e) {
-        return error('文件读取失败: ' + e.message, 500);
-      }
-    }
-
     // ===== 用户路由 =====
     // GET /api/users/profile
     if (path === '/api/users/profile' && method === 'GET') {
