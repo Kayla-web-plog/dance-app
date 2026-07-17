@@ -6,7 +6,8 @@ const CACHE_URLS = [
   '/js/utils.js',
   '/js/ui.js',
   '/js/api.js',
-  '/js/app.js',
+  '/js/app-core.js',
+  '/js/app-init.js',
   '/js/modules/auth.js',
   '/js/modules/card.js',
   '/js/modules/schedule.js',
@@ -14,6 +15,7 @@ const CACHE_URLS = [
   '/js/modules/checkin.js',
   '/js/modules/share.js',
   '/js/modules/home.js',
+  '/js/modules/reminders.js',
   '/manifest.json',
   '/assets/icons/icon-192.png',
   '/assets/icons/icon-512.png'

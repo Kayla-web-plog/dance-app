@@ -168,32 +168,6 @@ const API = {
     return this.del('/api/users/account');
   },
 
-  // ===== 文件上传到 R2 =====
-  async uploadFile(file, fileName) {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (fileName) formData.append('fileName', fileName);
-
-    const token = U.getToken();
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    // 注意：使用 FormData 时，浏览器会自动设置 Content-Type 为 multipart/form-data
-
-    try {
-      const res = await fetch(`${this.BASE_URL}/api/upload`, {
-        method: 'POST',
-        headers,
-        body: formData
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '上传失败');
-      return json;
-    } catch (err) {
-      console.error('[API.uploadFile]', err);
-      throw err;
-    }
-  },
-
   // ===== 舞蹈卡 =====
   getCards() { return this.get('/api/cards'); },
   getCard(id) { return this.get('/api/cards/' + id); },
