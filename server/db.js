@@ -58,6 +58,7 @@ function initTables() {
         danceLevel TEXT DEFAULT 'beginner',
         danceTypes TEXT DEFAULT '[]',
         freeTime TEXT DEFAULT '[]',
+        loginCode TEXT DEFAULT '',
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL
       );
