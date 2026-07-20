@@ -65,7 +65,7 @@ router.post('/guest', (req, res) => {
   }
 });
 
-// POST /api/auth/register - 注册并生成6位登录码（前端契约：返回 {token,user,code}）
+// POST /api/auth/register - 仅新手机号可注册并生成6位登录码（前端契约：返回 {token,user,code}）
 router.post('/register', (req, res) => {
   try {
     const { phone } = req.body;
@@ -73,23 +73,19 @@ router.post('/register', (req, res) => {
       return res.status(400).json({ error: '请输入正确手机号' });
     }
     const db = getDb();
+    const existing = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone);
+    if (existing) {
+      return res.status(400).json({ error: '该手机号已注册，请直接登录' });
+    }
     // 生成6位登录码
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    let user = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
-    if (!user) {
-      const now = Date.now();
-      const result = db.prepare(`
-        INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(phone, '舞者' + phone.slice(-4), 'beginner', '[]', '[]', code, now, now);
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-      console.log('[AUTH] register new user:', user.id, phone, 'code=', code);
-    } else {
-      // 已存在则重置登录码（用于找回）
-      db.prepare('UPDATE users SET loginCode = ?, updatedAt = ? WHERE id = ?').run(code, Date.now(), user.id);
-      user.loginCode = code;
-      console.log('[AUTH] register reset code for user:', user.id, 'code=', code);
-    }
+    const now = Date.now();
+    const result = db.prepare(`
+      INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(phone, '舞者' + phone.slice(-4), 'beginner', '[]', '[]', code, now, now);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+    console.log('[AUTH] register new user:', user.id, phone, 'code=', code);
     user.danceTypes = JSON.parse(user.danceTypes || '[]');
     user.freeTime = JSON.parse(user.freeTime || '[]');
     const token = generateToken(user.id);
@@ -97,6 +93,26 @@ router.post('/register', (req, res) => {
   } catch (err) {
     console.error('[AUTH] register error:', err);
     res.status(500).json({ error: '注册失败' });
+  }
+});
+
+// POST /api/auth/recover - 凭手机号找回登录码
+router.post('/recover', (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ error: '请输入正确手机号' });
+    }
+    const db = getDb();
+    const user = db.prepare('SELECT loginCode FROM users WHERE phone = ?').get(phone);
+    if (!user) {
+      return res.status(400).json({ error: '该手机号未注册，请先生成登录码' });
+    }
+    console.log('[AUTH] recover code for phone:', phone);
+    res.json({ code: user.loginCode });
+  } catch (err) {
+    console.error('[AUTH] recover error:', err);
+    res.status(500).json({ error: '找回失败' });
   }
 });
 

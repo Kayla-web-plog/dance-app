@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="css/app.css?v=8.3">
+<link rel="stylesheet" href="css/app.css?v=8.6">
 <title>舞力打卡</title>
 </head>
 <body>
@@ -118,16 +118,35 @@
       <div class="auth-name">舞力打卡</div>
       <div class="auth-sub">智能课表省钱助手 · 越跳越省</div>
       <div class="auth-f">
-        <!-- 步骤1：输入手机号 -->
-        <div id="authStep1">
+        <!-- 登录（默认）：手机号 + 登录码 -->
+        <div id="authStep3">
+          <div class="inp-g">
+            <label class="inp-l">手机号</label>
+            <input type="tel" class="inp" id="authPhone2" placeholder="请输入手机号" maxlength="11">
+          </div>
+          <div class="inp-g">
+            <label class="inp-l">登录码</label>
+            <input type="text" class="inp" id="authCode" placeholder="请输入6位登录码" maxlength="6" inputmode="numeric">
+          </div>
+          <button class="btn btn-p btn-b" onclick="__login()">登录</button>
+          <div class="auth-links">
+            <span class="auth-link" onclick="_showStep1()">首次使用？生成登录码</span>
+            <span class="auth-link auth-link-sub" onclick="_showForget()">忘记登录码？找回</span>
+          </div>
+        </div>
+        <!-- 注册：输入手机号生成登录码 -->
+        <div id="authStep1" style="display:none">
           <div class="inp-g">
             <label class="inp-l">手机号</label>
             <input type="tel" class="inp" id="authPhone" placeholder="请输入手机号" maxlength="11">
           </div>
           <button class="btn btn-p btn-b" onclick="_doRegister()">生成登录码</button>
           <div class="auth-hint">首次使用将自动生成6位登录码，请牢记</div>
+          <div class="auth-links">
+            <span class="auth-link" onclick="_showStep3()">已有账号？返回登录</span>
+          </div>
         </div>
-        <!-- 步骤2：显示生成的登录码 -->
+        <!-- 显示生成的登录码 -->
         <div id="authStep2" style="display:none">
           <div class="auth-code-display">
             <div class="auth-code-label">你的登录码</div>
@@ -136,27 +155,21 @@
           </div>
           <button class="btn btn-p btn-b" onclick="_finishRegister()">进入舞力打卡</button>
         </div>
-        <!-- 步骤3：输入手机号+登录码登录 -->
-        <div id="authStep3" style="display:none">
+        <!-- 找回登录码 -->
+        <div id="authStep4" style="display:none">
           <div class="inp-g">
             <label class="inp-l">手机号</label>
-            <input type="tel" class="inp" id="authPhone2" placeholder="请输入手机号" maxlength="11">
+            <input type="tel" class="inp" id="authPhoneRecover" placeholder="请输入注册时的手机号" maxlength="11">
           </div>
-          <div class="inp-g">
-            <label class="inp-l">登录码</label>
-            <input type="text" class="inp" id="authCode" placeholder="请输入6位登录码" maxlength="6">
+          <button class="btn btn-p btn-b" onclick="_doRecover()">找回登录码</button>
+          <div id="recoverResult" class="auth-code-display" style="display:none;margin-top:16px">
+            <div class="auth-code-label">你的登录码</div>
+            <div class="auth-code-value" id="recoverCode">------</div>
+            <div class="auth-code-hint">请牢记此登录码</div>
           </div>
-          <button class="btn btn-p btn-b" onclick="__login()">登录</button>
-          <div class="auth-forget" onclick="_showForget()">忘记登录码？</div>
-        </div>
-        <!-- 忘记登录码 -->
-        <div id="authStep4" style="display:none">
-          <div class="auth-forget-tip">
-            <div style="font-size:32px;margin-bottom:12px">😅</div>
-            <div>登录码已丢失</div>
-            <div style="font-size:13px;color:var(--t3);margin-top:8px">请重新注册，生成新的登录码</div>
+          <div class="auth-links">
+            <span class="auth-link" onclick="_showStep3()">返回登录</span>
           </div>
-          <button class="btn btn-p btn-b" onclick="_backToStep1()">重新注册</button>
         </div>
       </div>
     </div>
@@ -258,7 +271,7 @@
 <script src="js/ui.js?v=8.5"></script>
 <script src="js/api.js?v=8.5"></script>
 <script src="js/app-core.js?v=8.5"></script>
-<script src="js/modules/auth.js?v=8.5"></script>
+<script src="js/modules/auth.js?v=8.6"></script>
 <script src="js/modules/card.js?v=8.5"></script>
 <script src="js/modules/schedule.js?v=8.5"></script>
 <script src="js/modules/smartSchedule.js?v=8.5"></script>

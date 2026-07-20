@@ -79,29 +79,35 @@ export async function onRequest(context) {
       return json({ status: 'ok', db: 'connected' });
     }
 
-    // POST /api/auth/register
+    // POST /api/auth/register - 仅新手机号可注册生成登录码
     if (path === '/api/auth/register' && method === 'POST') {
       const { phone } = await getBody(request);
       if (!phone || !/^1\d{10}$/.test(phone)) return error('请输入正确手机号');
-      const code = String(Math.floor(100000 + Math.random() * 900000));
       const now = Date.now();
-      let user = await env.DB.prepare('SELECT * FROM users WHERE phone = ?').bind(phone).first();
-      if (user) {
-        await env.DB.prepare('UPDATE users SET loginCode = ?, updatedAt = ? WHERE id = ?').bind(code, now, user.id).run();
-      } else {
-        await env.DB.prepare(`
-          INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(phone, '舞者' + phone.slice(-4), 'beginner', JSON.stringify([]), JSON.stringify([]), code, now, now).run();
-        const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
-        user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.id).first();
-      }
+      const existing = await env.DB.prepare('SELECT id FROM users WHERE phone = ?').bind(phone).first();
+      if (existing) return error('该手机号已注册，请直接登录');
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      await env.DB.prepare(`
+        INSERT INTO users (phone, nickname, danceLevel, danceTypes, freeTime, loginCode, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(phone, '舞者' + phone.slice(-4), 'beginner', JSON.stringify([]), JSON.stringify([]), code, now, now).run();
+      const row = await env.DB.prepare('SELECT last_insert_rowid() as id').first();
+      const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.id).first();
       const token = generateToken();
       await env.DB.prepare('INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)').bind(token, user.id, now).run();
       user.danceTypes = JSON.parse(user.danceTypes || '[]');
       user.freeTime = JSON.parse(user.freeTime || '[]');
       delete user.loginCode;
       return json({ token, user, code });
+    }
+
+    // POST /api/auth/recover - 凭手机号找回登录码
+    if (path === '/api/auth/recover' && method === 'POST') {
+      const { phone } = await getBody(request);
+      if (!phone || !/^1\d{10}$/.test(phone)) return error('请输入正确手机号');
+      const user = await env.DB.prepare('SELECT loginCode FROM users WHERE phone = ?').bind(phone).first();
+      if (!user) return error('该手机号未注册，请先生成登录码');
+      return json({ code: user.loginCode });
     }
 
     // POST /api/auth/login

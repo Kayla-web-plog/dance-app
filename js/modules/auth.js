@@ -5,6 +5,8 @@
 // 页面加载时检查是否已登录（在app-core.js的init中处理）
 App.loadAuth = async function() {
   console.log('[AUTH] loaded');
+  // 默认展示「登录」界面（手机号 + 登录码）
+  _showStep3();
 };
 
 // 显示步骤1：输入手机号
@@ -40,7 +42,7 @@ function _showStep4() {
   document.getElementById('authStep4').style.display = 'block';
 }
 
-// ---- 步骤1：注册（调服务器API生成登录码）----
+// ---- 注册：生成登录码（仅限新手机号）----
 async function _doRegister() {
   const phone = document.getElementById('authPhone')?.value?.trim();
 
@@ -63,7 +65,36 @@ async function _doRegister() {
 
     console.log('[AUTH] 注册成功:', data.user.nickname);
   } catch (e) {
+    // 手机号已注册：引导去登录（不覆盖旧登录码）
+    if (e.message && e.message.indexOf('已注册') !== -1) {
+      UI.toast('该手机号已注册，请直接登录', 'err');
+      const p2 = document.getElementById('authPhone2');
+      if (p2) p2.value = phone;
+      _showStep3();
+      return;
+    }
     UI.toast(e.message || '注册失败', 'err');
+  }
+}
+
+// ---- 找回登录码 ----
+async function _doRecover() {
+  const phone = document.getElementById('authPhoneRecover')?.value?.trim();
+
+  if (!phone || phone.length !== 11 || !/^1[3-9]\d{9}$/.test(phone)) {
+    UI.toast('请输入正确的手机号', 'err');
+    return;
+  }
+
+  try {
+    UI.toast('正在找回...', 'ok');
+    const data = await API.post('/api/auth/recover', { phone });
+    // 展示找回的登录码
+    document.getElementById('recoverCode').textContent = data.code;
+    document.getElementById('recoverResult').style.display = 'block';
+    console.log('[AUTH] 找回成功');
+  } catch (e) {
+    UI.toast(e.message || '该手机号未注册', 'err');
   }
 }
 
@@ -112,8 +143,12 @@ async function __login() {
   }
 }
 
-// ---- 忘记登录码 ----
+// ---- 忘记登录码（进入找回界面）----
 function _showForget() {
+  const r = document.getElementById('recoverResult');
+  if (r) r.style.display = 'none';
+  const rc = document.getElementById('recoverCode');
+  if (rc) rc.textContent = '------';
   _showStep4();
 }
 

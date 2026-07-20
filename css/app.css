@@ -1460,6 +1460,31 @@ textarea.inp { resize: vertical; min-height: 80px; line-height: 1.6; }
   text-decoration: underline;
 }
 
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.auth-link {
+  font-size: 14px;
+  color: var(--clr);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-link-sub {
+  font-size: 13px;
+  color: var(--t3);
+  font-weight: 500;
+}
+
 .auth-forget-tip {
   text-align: center;
   padding: 40px 24px;
