@@ -294,6 +294,20 @@ export async function onRequest(context) {
       }
     }
 
+    // PUT /api/cards/target - 设置/更新期望课单价（快捷入口）
+    if (path === '/api/cards/target' && method === 'PUT') {
+      const auth = await requireAuth(request, env);
+      if (auth.error) return auth.error;
+      const { targetPrice } = await getBody(request);
+      if (!targetPrice || targetPrice <= 0) return error('期望课单价必须大于0');
+      const card = await env.DB.prepare('SELECT * FROM cards WHERE userId = ? AND status = ? ORDER BY createdAt DESC').bind(auth.userId, 'active').first();
+      if (!card) return error('没有激活的舞蹈卡，请先创建');
+      const now = Date.now();
+      await env.DB.prepare('UPDATE cards SET targetPrice = ?, updatedAt = ? WHERE id = ?').bind(targetPrice, now, card.id).run();
+      const updated = await env.DB.prepare('SELECT * FROM cards WHERE id = ?').bind(card.id).first();
+      return json({ success: true, card: updated });
+    }
+
     // POST /api/cards/recover
     if (path === '/api/cards/recover' && method === 'POST') {
       const auth = await requireAuth(request, env);

@@ -143,6 +143,25 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// PUT /api/cards/target - 设置/更新期望课单价（快捷入口）
+router.put('/target', (req, res) => {
+  try {
+    const { targetPrice } = req.body;
+    if (!targetPrice || targetPrice <= 0) return res.status(400).json({ error: '期望课单价必须大于0' });
+    const db = getDb();
+    const card = db.prepare('SELECT * FROM cards WHERE userId = ? AND status = ? ORDER BY createdAt DESC').get(req.userId, 'active');
+    if (!card) return res.status(400).json({ error: '没有激活的舞蹈卡，请先创建' });
+    const now = Date.now();
+    db.prepare('UPDATE cards SET targetPrice = ?, updatedAt = ? WHERE id = ?').run(targetPrice, now, card.id);
+    const updated = db.prepare('SELECT * FROM cards WHERE id = ?').get(card.id);
+    console.log('[CARDS] set target:', updated.id, 'targetPrice=', targetPrice);
+    res.json({ success: true, card: updated });
+  } catch (err) {
+    console.error('[CARDS] target error:', err);
+    res.status(500).json({ error: '设置失败' });
+  }
+});
+
 // POST /api/cards/recover - 缺课补救计算
 router.post('/recover', (req, res) => {
   try {
