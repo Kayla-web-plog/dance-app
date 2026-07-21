@@ -88,7 +88,9 @@ App._showDayCoursesForBackfill = async function(cid, dateStr) {
     }
 
     cid.innerHTML = `<div class="sec-title">补卡 · ${dateStr} (${wds[weekday]})</div>
-      <div style="font-size:13px;color:var(--t3);margin-bottom:12px">选择要补录的课程</div>
+      <div style="font-size:13px;color:var(--t3);margin-bottom:12px">选择要补录的课程；若当天没去上课，可
+        <span style="color:var(--clr);text-decoration:underline;cursor:pointer" onclick="App._renderAbsentReasonForm('${dateStr}')">说明缺课原因</span>
+      </div>
       ${dayCourses.map(c => `
         <div class="course" style="cursor:pointer" onclick="App.nav('checkin',{tid:${c.id},backfillDate:'${dateStr}'})">
           <div class="course-time">${c.time||'—'}</div>
@@ -302,7 +304,7 @@ App._submitBackfill = async function() {
       tags
     });
     UI.toast(`补卡成功! ${this._backfillDate}`,'ok');
-    setTimeout(()=>this.nav('checkinHistory'),500);
+    setTimeout(()=>this.nav('checkinHistory',{year:this._historyYear,month:this._historyMonth}),500);
   } catch(e) { UI.toast(e.message||'补卡失败','err'); }
 };
 
@@ -420,70 +422,101 @@ App.loadHistory = async function(params) {
 
   const now = new Date();
   let year = now.getFullYear();
-  let month = now.getMonth();
+  let month = now.getMonth();   // 0-based，仅用于显示与导航
 
-  // 支持从 params 指定年月
+  // 支持从 params 指定年月（0-based）
   if (params && params.year) year = parseInt(params.year);
   if (params && params.month) month = parseInt(params.month);
 
+  // 保存当前查看的年月，供补卡/说明原因后返回同一月份
+  this._historyYear = year;
+  this._historyMonth = month;
+
   try {
-    // 并行加载日历数据和统计
-    const [calData, stats] = await Promise.all([
-      API.getCalendar(year, month),
-      API.getStatistics().catch(() => null)
-    ]);
-
-    const records = calData.records || [];
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayWd = new Date(year, month, 1).getDay() || 7;
+    // 后端 month 为 1-based，故传 month+1
+    const calData = await API.getCalendar(year, month + 1);
+    const cal = calData.calendar || {};
+    const days = cal.days || [];
+    const stats = cal.stats || { done: 0, absent: 0, total: 0, rate: '0%' };
     const wds = ['一','二','三','四','五','六','日'];
-
-    // 构建日期→记录映射
-    const dayMap = {};
-    records.forEach(r => {
-      const d = (r.courseDate || '').slice(0, 10);
-      if (d && !dayMap[d]) dayMap[d] = r;
-    });
 
     // 日历格子
     let cells = '';
-    for (let i = 1; i < firstDayWd; i++) cells += `<div class="cal-cell cal-empty"></div>`;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const rec = dayMap[dateStr];
-      const isToday = (now.getDate() === d && now.getMonth() === month && now.getFullYear() === year);
+    days.forEach(day => {
+      if (day === null) { cells += `<div class="cal-cell cal-empty"></div>`; return; }
+      const isDone = (day.doneCount || 0) > 0;
+      const isAbsent = !isDone && (day.absentCount || 0) > 0;   // 用户主动说明的缺课
+      const isMiss = !day.hasRecord && day.shouldClass;            // 系统推断：应上课但无记录
       let cls = 'cal-cell';
-      if (rec) cls += rec.status === 'done' ? ' cal-done' : (rec.status === 'absent' ? ' cal-absent' : '');
-      if (isToday) cls += ' cal-today';
-      cells += `<div class="${cls}" onclick="App.nav('checkin',{date:'${dateStr}'})" title="${rec ? (rec.courseName||'打卡') + (rec.status==='done'?'✓':'缺课') : ''}">${d}</div>`;
-    }
+      let badge = '';
+      if (isDone) { cls += ' cal-done'; badge = `<span class="cal-cnt">${day.doneCount}节</span>`; }
+      else if (isAbsent) { cls += ' cal-absent'; badge = `<span class="cal-cnt">缺</span>`; }
+      else if (isMiss) { cls += ' cal-miss'; badge = `<span class="cal-cnt">缺</span>`; }
+      if (day.isToday) cls += ' cal-today';
+      const title = isDone ? `已打卡${day.doneCount}节` : isAbsent ? '缺课（已说明原因）' : isMiss ? '缺卡：应上课未打卡' : '';
+      cells += `<div class="${cls}" onclick="App.nav('checkin',{date:'${day.date}'})" title="${title}">${day.day}${badge}</div>`;
+    });
 
     container.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <button class="btn btn-ghost btn-sm" onclick="App.nav('checkinHistory',{year:${year},month:${month-1}})">◀上月</button>
+        <button class="btn btn-ghost btn-sm" onclick="App._historyMonthNav(-1)">◀上月</button>
         <div style="font-weight:700;font-size:16px">${year}年${month+1}月</div>
-        <button class="btn btn-ghost btn-sm" onclick="App.nav('checkinHistory',{year:${year},month:${month+1})">下月▶</button>
+        <button class="btn btn-ghost btn-sm" onclick="App._historyMonthNav(1)">下月▶</button>
       </div>
       <div class="cal-grid">
         ${wds.map(w => `<div class="cal-head">${w}</div>`).join('')}
         ${cells}
       </div>
-      <div style="display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--t3)">
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:4px"></span>已打卡</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--red);margin-right:4px"></span>缺课</span>
+      <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--t3);flex-wrap:wrap">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:4px"></span>已打卡(角标=节数)</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--red);margin-right:4px"></span>缺课(已说明)</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ff8c1a;margin-right:4px"></span>缺卡(应上课未打卡)</span>
         <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid var(--clr);margin-right:4px"></span>今天</span>
       </div>
-      ${stats ? `
       <div class="card" style="margin-top:14px">
-        <div style="font-size:14px;font-weight:700;margin-bottom:8px">本月统计</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">本月统计（${year}年${month+1}月）</div>
         <div style="display:flex;gap:20px">
-          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--green)">${stats.monthDone||0}</div><div style="font-size:11px;color:var(--t3)">已打卡</div></div>
-          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--red)">${stats.monthAbsent||0}</div><div style="font-size:11px;color:var(--t3)">缺课</div></div>
-          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--clr)">${stats.totalDone||0}</div><div style="font-size:11px;color:var(--t3)">累计</div></div>
+          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--green)">${stats.done||0}</div><div style="font-size:11px;color:var(--t3)">已打卡</div></div>
+          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--red)">${stats.absent||0}</div><div style="font-size:11px;color:var(--t3)">缺课</div></div>
+          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--clr)">${stats.rate||'0%'}</div><div style="font-size:11px;color:var(--t3)">打卡率</div></div>
         </div>
-      </div>` : ''}
+        <div style="font-size:11px;color:var(--t3);margin-top:8px;line-height:1.6">说明：<b>缺卡</b> 指开卡之后、课表上该有课、但你没有打卡记录的日子（今天之前的都会计入）。补卡或说明缺课原因后，该日即不再显示缺卡。</div>
+      </div>
     `;
   } catch (e) {
     container.innerHTML = UI.empty('📅', '记录加载失败', e.message);
   }
+};
+
+// 月份切换（正确处理跨年）
+App._historyMonthNav = function(delta) {
+  let y = this._historyYear, m = (this._historyMonth || 0) + delta;
+  if (m < 0) { m = 11; y--; }
+  else if (m > 11) { m = 0; y++; }
+  this.nav('checkinHistory', { year: y, month: m });
+};
+
+// 说明缺课原因（清除系统缺卡标记）
+App._renderAbsentReasonForm = function(dateStr) {
+  const cid = document.getElementById('checkinContent');
+  if (!cid) return;
+  const reasons = ['加班','身体不适','临时有事','天气原因','忘记上课','其他'];
+  cid.innerHTML = `<div class="sec-title">说明缺课 · ${dateStr}</div>
+    <div class="card">
+      <div class="inp-g"><label class="inp-l">缺课原因</label><div id="missR" style="display:flex;flex-wrap:wrap;gap:8px">${reasons.map(r=>`<span class="chip" data-r="${r}" onclick="this.classList.toggle('on')">${r}</span>`).join('')}</div></div>
+      <div class="inp-g"><label class="inp-l">备注</label><textarea class="inp" id="missNote" rows="2" placeholder="补充说明..."></textarea></div>
+    </div>
+    <button class="btn btn-danger btn-b" onclick="App._submitAbsentReason('${dateStr}')">提交说明</button>
+    <button class="btn btn-ghost btn-b" style="margin-top:8px" onclick="App.nav('checkinHistory',{year:App._historyYear,month:App._historyMonth})">取消</button>`;
+};
+App._submitAbsentReason = async function(dateStr) {
+  if (!this.card) { try { const d=await API.getCards(); const a=(d.cards||[]).find(c=>c.status==='active'); if(a)this.card=a; else{UI.toast('请先创建舞蹈卡','err');return;} } catch(e){UI.toast('获取舞蹈卡失败','err');return;} }
+  const reasons = [...document.querySelectorAll('#missR .chip.on')].map(c=>c.dataset.r).join(',');
+  if (!reasons) { UI.toast('请选择缺课原因','err'); return; }
+  const note = document.getElementById('missNote')?.value?.trim()||'';
+  try {
+    await API.post('/api/checkins', { cardId:this.card.id, courseName:'缺课', courseDate:dateStr, status:'absent', absentReason:reasons, note });
+    UI.toast('已说明缺课原因','ok');
+    setTimeout(()=>this.nav('checkinHistory',{year:this._historyYear,month:this._historyMonth}),500);
+  } catch(e) { UI.toast(e.message||'提交失败','err'); }
 };

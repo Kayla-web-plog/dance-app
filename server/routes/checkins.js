@@ -139,7 +139,7 @@ router.get('/calendar', (req, res) => {
     const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
     const db = getDb();
 
-    const cards = db.prepare('SELECT id FROM cards WHERE userId = ?').all(req.userId);
+    const cards = db.prepare('SELECT id, startDate FROM cards WHERE userId = ?').all(req.userId);
     const cardIds = cards.map(c => c.id);
 
     let days = [];
@@ -156,8 +156,21 @@ router.get('/calendar', (req, res) => {
         AND courseDate >= ? AND courseDate <= ?
       `).all(...cardIds, firstDay, lastDayStr);
 
-      const checkinMap = {};
-      checkins.forEach(c => { checkinMap[c.courseDate] = c; });
+      // 按天聚合：统计 done / absent 节数
+      const dayAgg = {};
+      checkins.forEach(c => {
+        if (!dayAgg[c.courseDate]) dayAgg[c.courseDate] = { done: 0, absent: 0, has: false };
+        dayAgg[c.courseDate].has = true;
+        if (c.status === 'done') dayAgg[c.courseDate].done++;
+        else if (c.status === 'absent') dayAgg[c.courseDate].absent++;
+      });
+
+      // 开卡日期（取最早一张卡）
+      let minStart = null;
+      cards.forEach(c => { if (c.startDate && (!minStart || c.startDate < minStart)) minStart = c.startDate; });
+      // 课表有课的星期集合
+      const tplRows = db.prepare('SELECT DISTINCT weekday FROM templates').all();
+      const classWd = new Set(tplRows.map(t => t.weekday));
 
       // 生成日历数据
       const startDay = (new Date(year, month - 1, 1).getDay() + 7) % 7;
@@ -169,10 +182,14 @@ router.get('/calendar', (req, res) => {
 
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const ck = checkinMap[dateStr];
+        const agg = dayAgg[dateStr] || { done: 0, absent: 0, has: false };
+        const wd = new Date(year, month - 1, d).getDay();
+        const isFuture = dateStr > todayStr;
+        const afterStart = minStart ? (dateStr >= minStart) : false;
+        const shouldClass = !isFuture && afterStart && classWd.has(wd);
         days.push({
           day: d, date: dateStr,
-          status: ck ? ck.status : null,
+          doneCount: agg.done, absentCount: agg.absent, hasRecord: agg.has, shouldClass,
           isToday: dateStr === todayStr
         });
       }

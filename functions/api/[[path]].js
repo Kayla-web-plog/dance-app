@@ -354,9 +354,9 @@ export async function onRequest(context) {
       if (auth.error) return auth.error;
       const year = parseInt(url.searchParams.get('year')) || new Date().getFullYear();
       const month = parseInt(url.searchParams.get('month')) || (new Date().getMonth() + 1);
-      const cards = await env.DB.prepare('SELECT id FROM cards WHERE userId = ?').bind(auth.userId).all();
+      const cards = await env.DB.prepare('SELECT id, startDate FROM cards WHERE userId = ?').bind(auth.userId).all();
       const cardIds = cards.results.map(c => c.id);
-      if (cardIds.length === 0) return json({ calendar: { year, month, days: [], stats: { done: 0, absent: 0, rate: '0%' } } });
+      if (cardIds.length === 0) return json({ calendar: { year, month, days: [], stats: { done: 0, absent: 0, total: 0, rate: '0%' } } });
       const firstDay = `${year}-${String(month).padStart(2,'0')}-01`;
       const lastDay = new Date(year, month, 0);
       const lastDayStr = `${year}-${String(month).padStart(2,'0')}-${String(lastDay.getDate()).padStart(2,'0')}`;
@@ -365,8 +365,20 @@ export async function onRequest(context) {
         SELECT courseDate, status FROM checkins
         WHERE cardId IN (${placeholders}) AND courseDate >= ? AND courseDate <= ?
       `).bind(...cardIds, firstDay, lastDayStr).all();
-      const checkinMap = {};
-      checkins.results.forEach(c => { checkinMap[c.courseDate] = c; });
+      // 按天聚合：统计 done / absent 节数
+      const dayAgg = {};
+      checkins.results.forEach(c => {
+        if (!dayAgg[c.courseDate]) dayAgg[c.courseDate] = { done: 0, absent: 0, has: false };
+        dayAgg[c.courseDate].has = true;
+        if (c.status === 'done') dayAgg[c.courseDate].done++;
+        else if (c.status === 'absent') dayAgg[c.courseDate].absent++;
+      });
+      // 开卡日期（取最早一张卡）
+      let minStart = null;
+      cards.results.forEach(c => { if (c.startDate && (!minStart || c.startDate < minStart)) minStart = c.startDate; });
+      // 课表有课的星期集合
+      const tplRows = await env.DB.prepare('SELECT DISTINCT weekday FROM templates').all();
+      const classWd = new Set(tplRows.results.map(t => t.weekday));
       const startDay = (new Date(year, month - 1, 1).getDay() + 7) % 7;
       const daysInMonth = lastDay.getDate();
       const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
@@ -374,8 +386,15 @@ export async function onRequest(context) {
       for (let i = 0; i < startDay; i++) days.push(null);
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const ck = checkinMap[dateStr];
-        days.push({ day: d, date: dateStr, status: ck ? ck.status : null, isToday: dateStr === todayStr });
+        const agg = dayAgg[dateStr] || { done: 0, absent: 0, has: false };
+        const wd = new Date(year, month - 1, d).getDay();
+        const isFuture = dateStr > todayStr;
+        const afterStart = minStart ? (dateStr >= minStart) : false;
+        const shouldClass = !isFuture && afterStart && classWd.has(wd);
+        days.push({
+          day: d, date: dateStr, isToday: dateStr === todayStr,
+          doneCount: agg.done, absentCount: agg.absent, hasRecord: agg.has, shouldClass
+        });
       }
       const doneC = checkins.results.filter(c => c.status === 'done').length;
       const totalC = checkins.results.length;
