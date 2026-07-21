@@ -168,6 +168,11 @@ const API = {
     return this.del('/api/users/account');
   },
 
+  // 清空个人数据（保留账号与登录态）
+  resetData() {
+    return this.post('/api/data/reset');
+  },
+
   // ===== 舞蹈卡 =====
   getCards() { return this.get('/api/cards'); },
   getCard(id) { return this.get('/api/cards/' + id); },

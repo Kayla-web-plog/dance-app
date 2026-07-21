@@ -204,8 +204,23 @@ App.loadProfile = async function() {
       <div class="prof-mi" onclick="App.nav('reminders')"><div class="prof-mi-left"><span class="prof-mi-ico"><svg width="18" height="18" style="color:#f59e0b"><use href="#i-magic"/></svg></span>提醒设置</div><span style="color:var(--t3)">›</span></div>
     </div>
     <button class="prof-logout-btn" onclick="_doLogout()">退出登录</button>
+    <div class="prof-out" onclick="App._resetData()">清空我的数据</div>
     <div class="prof-out" onclick="App._handleAccountDelete()">注销账号</div>
   `;
+};
+
+// ---- 清空我的数据（保留账号与登录态）----
+App._resetData = async function() {
+  const ok = await UI.modal('清空数据', '将删除你的舞蹈卡、打卡记录和课表，恢复到初始空白状态。账号和登录码保留。确定吗？', '清空', '取消');
+  if (!ok) return;
+  try {
+    await API.resetData();
+    this.card = null;
+    UI.toast('数据已清空，可以重新导入课表啦', 'ok');
+    await this.nav('home');
+  } catch (e) {
+    UI.toast(e.message || '清空失败', 'err');
+  }
 };
 
 // 手机号打码显示：138****8888
@@ -261,6 +276,41 @@ App.loadProfileEdit = async function() {
     </div>
     <button class="btn btn-p btn-b" onclick="App._saveProfile()">保存</button>
   `;
+};
+
+// ---- 成就徽章 ----
+App.loadAchievements = async function() {
+  const container = document.getElementById('achContent');
+  if (!container) { console.error('[ACH] container not found'); return; }
+
+  try {
+    const data = await API.getAchievements();
+    const list = data.achievements || [];
+    if (list.length === 0) {
+      container.innerHTML = UI.empty('🏆', '暂无成就', '完成课程打卡即可解锁徽章');
+      return;
+    }
+    const earned = list.filter(a => a.earned).length;
+    container.innerHTML = `
+      <div class="sec-title">我的成就</div>
+      <div class="card" style="text-align:center;padding:16px;margin-bottom:14px">
+        <div style="font-size:30px;font-weight:800;color:var(--orange)">${earned}</div>
+        <div style="font-size:12px;color:var(--t3)">已解锁 / 共 ${list.length} 枚徽章</div>
+      </div>
+      <div class="ach-grid">
+        ${list.map(a => `
+          <div class="ach-badge ${a.earned ? 'earned' : 'locked'}">
+            <div class="ach-ico">${a.icon || '🏅'}</div>
+            <div class="ach-name">${a.name}</div>
+            <div class="ach-desc">${a.desc || ''}</div>
+            <div class="ach-state">${a.earned ? '已解锁' : '未解锁'}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = UI.empty('⚠️', '成就加载失败', e.message);
+  }
 };
 
 App._saveProfile = async function() {

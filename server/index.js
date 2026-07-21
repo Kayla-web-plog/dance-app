@@ -46,6 +46,7 @@ app.use(express.static(path.join(__dirname, '..')));
 // ===== API路由 =====
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/auth'));
+app.use('/api/data', require('./routes/auth'));
 app.use('/api/cards', require('./routes/cards'));
 app.use('/api/templates', require('./routes/templates'));
 app.use('/api/checkins', require('./routes/checkins'));

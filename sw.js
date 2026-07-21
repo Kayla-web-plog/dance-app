@@ -1,5 +1,5 @@
 // 舞力打卡 - Service Worker
-const CACHE_NAME = 'dance-app-v3';
+const CACHE_NAME = 'dance-app-v4';
 const CACHE_URLS = [
   '/',
   '/css/app.css',

@@ -207,6 +207,19 @@ export async function onRequest(context) {
       return json({ success: true, message: '账号已注销' });
     }
 
+    // POST /api/data/reset - 清空当前用户的个人数据（保留账号与登录态）
+    if (path === '/api/data/reset' && method === 'POST') {
+      const auth = await requireAuth(request, env);
+      if (auth.error) return auth.error;
+      // 删除该用户的打卡记录（通过 cards 关联）
+      await env.DB.prepare('DELETE FROM checkins WHERE cardId IN (SELECT id FROM cards WHERE userId = ?)').bind(auth.userId).run();
+      // 删除该用户的舞蹈卡
+      await env.DB.prepare('DELETE FROM cards WHERE userId = ?').bind(auth.userId).run();
+      // 清空课程目录（舞蹈室课表），让用户重新导入自己的课表
+      await env.DB.prepare('DELETE FROM templates').run();
+      return json({ success: true, message: '数据已清空' });
+    }
+
     // ===== 舞蹈卡路由 =====
     // GET /api/cards/stats
     if (path === '/api/cards/stats' && method === 'GET') {

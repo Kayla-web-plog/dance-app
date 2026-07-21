@@ -215,4 +215,25 @@ router.delete('/account', authMiddleware, (req, res) => {
   }
 });
 
+// POST /api/data/reset - 清空当前用户的个人数据（保留账号与登录态）
+router.post('/reset', authMiddleware, (req, res) => {
+  try {
+    const db = getDb();
+    const cards = db.prepare('SELECT id FROM cards WHERE userId = ?').all(req.userId);
+    const cardIds = cards.map(c => c.id);
+    if (cardIds.length > 0) {
+      const placeholders = cardIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM checkins WHERE cardId IN (${placeholders})`).run(...cardIds);
+      db.prepare('DELETE FROM cards WHERE userId = ?').run(req.userId);
+    }
+    // 清空课程目录（舞蹈室课表），让用户重新导入自己的课表
+    db.prepare('DELETE FROM templates').run();
+    console.log('[DATA] reset for user:', req.userId);
+    res.json({ success: true, message: '数据已清空' });
+  } catch (err) {
+    console.error('[DATA] reset error:', err);
+    res.status(500).json({ error: '清空失败' });
+  }
+});
+
 module.exports = router;

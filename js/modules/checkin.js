@@ -412,3 +412,78 @@ App._showIncentiveToast = function() {
   document.body.appendChild(toast);
   setTimeout(() => { if(toast.parentNode) toast.remove(); }, 1500);
 };
+
+// ===== 打卡记录（日历视图）=====
+App.loadHistory = async function(params) {
+  const container = document.getElementById('historyContent');
+  if (!container) { console.error('[HISTORY] container not found'); return; }
+
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth();
+
+  // 支持从 params 指定年月
+  if (params && params.year) year = parseInt(params.year);
+  if (params && params.month) month = parseInt(params.month);
+
+  try {
+    // 并行加载日历数据和统计
+    const [calData, stats] = await Promise.all([
+      API.getCalendar(year, month),
+      API.getStatistics().catch(() => null)
+    ]);
+
+    const records = calData.records || [];
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayWd = new Date(year, month, 1).getDay() || 7;
+    const wds = ['一','二','三','四','五','六','日'];
+
+    // 构建日期→记录映射
+    const dayMap = {};
+    records.forEach(r => {
+      const d = (r.courseDate || '').slice(0, 10);
+      if (d && !dayMap[d]) dayMap[d] = r;
+    });
+
+    // 日历格子
+    let cells = '';
+    for (let i = 1; i < firstDayWd; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const rec = dayMap[dateStr];
+      const isToday = (now.getDate() === d && now.getMonth() === month && now.getFullYear() === year);
+      let cls = 'cal-cell';
+      if (rec) cls += rec.status === 'done' ? ' cal-done' : (rec.status === 'absent' ? ' cal-absent' : '');
+      if (isToday) cls += ' cal-today';
+      cells += `<div class="${cls}" onclick="App.nav('checkin',{date:'${dateStr}'})" title="${rec ? (rec.courseName||'打卡') + (rec.status==='done'?'✓':'缺课') : ''}">${d}</div>`;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <button class="btn btn-ghost btn-sm" onclick="App.nav('checkinHistory',{year:${year},month:${month-1}})">◀上月</button>
+        <div style="font-weight:700;font-size:16px">${year}年${month+1}月</div>
+        <button class="btn btn-ghost btn-sm" onclick="App.nav('checkinHistory',{year:${year},month:${month+1})">下月▶</button>
+      </div>
+      <div class="cal-grid">
+        ${wds.map(w => `<div class="cal-head">${w}</div>`).join('')}
+        ${cells}
+      </div>
+      <div style="display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--t3)">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:4px"></span>已打卡</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--red);margin-right:4px"></span>缺课</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid var(--clr);margin-right:4px"></span>今天</span>
+      </div>
+      ${stats ? `
+      <div class="card" style="margin-top:14px">
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">本月统计</div>
+        <div style="display:flex;gap:20px">
+          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--green)">${stats.monthDone||0}</div><div style="font-size:11px;color:var(--t3)">已打卡</div></div>
+          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--red)">${stats.monthAbsent||0}</div><div style="font-size:11px;color:var(--t3)">缺课</div></div>
+          <div style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--clr)">${stats.totalDone||0}</div><div style="font-size:11px;color:var(--t3)">累计</div></div>
+        </div>
+      </div>` : ''}
+    `;
+  } catch (e) {
+    container.innerHTML = UI.empty('📅', '记录加载失败', e.message);
+  }
+};

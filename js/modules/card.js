@@ -158,3 +158,80 @@ App._saveCard = async function(editId) {
     UI.toast(e.message || '保存失败', 'err');
   }
 };
+
+// ---- 缺课补救计算 ----
+App.loadRecover = async function() {
+  const container = document.getElementById('recoverContent');
+  if (!container) { console.error('[RECOVER] container not found'); return; }
+
+  // 确保有活跃卡
+  if (!this.card) {
+    try {
+      const d = await API.getCards();
+      const a = (d.cards || []).find(c => c.status === 'active');
+      if (a) this.card = a;
+    } catch (e) { /* ignore */ }
+  }
+
+  if (!this.card) {
+    container.innerHTML = `<div class="card" style="text-align:center;padding:40px 20px">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--clr-ghost);margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+        <svg width="28" height="28" style="color:var(--clr)"><use href="#i-card"/></svg>
+      </div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">没有激活的舞蹈卡</div>
+      <div style="font-size:13px;color:var(--t3);margin-bottom:16px">请先创建舞蹈卡才能使用缺课补救</div>
+      <button class="btn btn-p" onclick="App.nav('cardForm')">去创建</button>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="sec-title">缺课补救计算</div>
+    <div class="card" style="padding:18px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;color:var(--t3)">
+        <span>当前舞蹈卡：${this.card.name || '我的舞蹈卡'}</span>
+        <span>目标单价 ¥${this.card.targetPrice || '未设'}/节</span>
+      </div>
+      <div class="inp-g" style="margin-top:12px">
+        <label class="inp-l">缺课节数</label>
+        <input type="number" class="inp" id="recAbsentCount" placeholder="输入缺了几节课" min="1" value="1">
+      </div>
+      <div class="inp-g">
+        <label class="inp-l">补救方式</label>
+        <select class="inp" id="recMethod">
+          <option value="makeup">补课（免费，需额外时间）</option>
+          <option value="buy">加购课时（按目标单价）</option>
+          <option value="extend">延期（延长有效期）</option>
+        </select>
+      </div>
+      <button class="btn btn-p btn-b" onclick="App._calcRecover()">计算补救方案</button>
+    </div>
+    <div id="recResult"></div>
+  `;
+};
+
+App._calcRecover = async function() {
+  const resultEl = document.getElementById('recResult');
+  if (!resultEl) return;
+
+  const absentCount = parseInt(document.getElementById('recAbsentCount')?.value) || 0;
+  const method = document.getElementById('recMethod')?.value || 'makeup';
+
+  if (absentCount <= 0) {
+    UI.toast('请输入有效的缺课节数', 'err'); return;
+  }
+
+  try {
+    const data = await API.recoverCalc({ cardId: this.card.id, absentCount, method });
+    resultEl.innerHTML = `
+      <div class="card" style="border-color:var(--green);background:var(--bg)">
+        <div style="font-size:15px;font-weight:700;color:var(--green);margin-bottom:10px">💡 补救建议</div>
+        ${data.plan ? data.plan : ''}
+        ${data.extraCost ? `<div style="margin-top:8px;padding:8px;background:rgba(255,200,0,.08);border-radius:8px;font-size:13px"><b>额外费用：</b>${U.money(data.extraCost)}</div>` : ''}
+        <div style="margin-top:10px;font-size:12px;color:var(--t3)">提示：补救后实际单价会重新计算</div>
+      </div>
+    `;
+  } catch (e) {
+    resultEl.innerHTML = UI.empty('⚠️', '计算失败', e.message);
+  }
+};
