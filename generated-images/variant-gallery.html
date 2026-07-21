@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案A · 打勾风格变体对比</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #1a0a2e; color: #fff; padding: 32px 16px;
+    background-image: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%);
+  }
+  h1 { text-align: center; font-size: 22px; margin-bottom: 4px; background: linear-gradient(90deg,#e040fb,#7c4dff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { text-align: center; color: #9aa0c0; font-size: 13px; margin-bottom: 28px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px; max-width: 1100px; margin: 0 auto;
+  }
+  .card {
+    background: rgba(255,255,255,.06); border-radius: 18px; padding: 20px; text-align: center;
+    border: 1px solid rgba(124,92,255,.25); transition: transform .15s, box-shadow .15s;
+    backdrop-filter: blur(8px);
+  }
+  .card:hover { transform: translateY(-5px); box-shadow: 0 12px 36px rgba(124,92,255,.2); border-color: #e040fb; }
+  .card.original { border-color: #ffd54f; }
+  .card .tag {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    padding: 3px 10px; border-radius: 10px; margin-bottom: 12px;
+  }
+  .tag-a1 { background:#ffd54f33; color:#ffd54f; }
+  .tag-a2 { background:#ffab0033; color:#ffab00; }
+  .tag-a3 { background:#ff6d0033; color:#ff8a65; }
+  .tag-a4 { background:#00e5ff33; color:#00e5ff; }
+  .card img {
+    width: 170px; height: 170px; object-fit: contain; margin: 10px auto;
+    border-radius: 38px; background: #fff; padding: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.35);
+  }
+  .card .name { font-size: 15px; font-weight: 700; margin-top: 10px; margin-bottom: 6px; }
+  .card .desc { font-size: 12px; color: #b0b8d0; line-height: 1.65; }
+  .highlight { color:#e040fb; font-weight:600; }
+  .foot { text-align:center; color:#5a6099; font-size:12px; margin-top:32px; line-height:1.8; }
+</style>
+</head>
+<body>
+  <h1>✦ 方案 A 变体 — 打勾风格对比 ✦</h1>
+  <div class="sub">紫粉爵士舞者底图不变 · 仅更换右下角「打卡完成」的艺术形式</div>
+
+  <div class="grid">
+
+    <!-- A1 原版 -->
+    <div class="card original">
+      <div class="tag tag-a1">A1 · 原版（当前）</div>
+      <img src="App_icon_design_for_a_dance_cl_2026-07-20T10-23-32.png">
+      <div class="name">绿色圆形白勾徽章</div>
+      <div class="desc"><span class="highlight">当前版本</span><br>右下角是一个亮绿色圆形背景 + 白色对勾，扁平化设计。优点：清晰直观；缺点：比较普通、偏基础。</div>
+    </div>
+
+    <!-- A2 星爆 -->
+    <div class="card">
+      <div class="tag tag-a2">A2 · 金色星爆勋章</div>
+      <img src="Square_rounded_app_icon__purpl_2026-07-20T10-31-24.png">
+      <div class="name">漫画爆炸星形徽章</div>
+      <div class="desc"><span class="highlight">推荐尝试</span><br>把圆形换成<span class="highlight">金色放射状星爆形状</span>（像漫画里的 POW 爆炸框），金属质感+3D立体，中间嵌白勾。更有成就感和冲击力。</div>
+    </div>
+
+    <!-- A3 缎带 -->
+    <div class="card">
+      <div class="tag tag-a3">A3 · 流动缎带横幅</div>
+      <img src="Square_rounded_app_icon__purpl_2026-07-20T10-31-23.png">
+      <div class="name">珊瑚橙丝带横幅</div>
+      <div class="desc">把徽章换成一条<span class="highlight">流动的珊瑚橙色缎带</span>横穿图标下方，缎带上织入打卡符号或小勾，3D布料质感柔美灵动，增加女性化优雅感。</div>
+    </div>
+
+    <!-- A4 霓虹/印章 -->
+    <div class="card">
+      <div class="tag tag-a4">A4 · 霓虹进度环 / 印章</div>
+      <img src="Square_rounded_app_icon_for_a__2026-07-20T10-32-01.png">
+      <div class="name">青色霓虹 / 复古印章</div>
+      <div class="desc">用<span class="highlight">发光的青色细线圆环</span>（约75%闭合）替代实心圆形，末端带小星星闪光；或者复古<span class="highlight">墨水印章纹理</span>，有真实按压的粗糙边缘感。</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    回复我「选 A1」「选 A2」… 告诉你最满意的那个<br>
+    选定后我立刻缩放成 192 / 512 并替换线上图标
+  </div>
+</body>
+</html>
