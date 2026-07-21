@@ -192,6 +192,7 @@ App.loadProfile = async function() {
         ${(u.danceTypes || []).join(' · ') || '未设置舞种'} ·
         ${({beginner:'入门',elementary:'初级',intermediate:'中级',advanced:'高级'})[u.danceLevel] || '入门'}
       </div>
+      <div class="prof-phone">登录手机：${maskPhone(u.phone || '')}</div>
     </div>
     <div class="card" style="padding:4px 0">
       <div class="prof-mi" onclick="App.nav('profileEdit')"><div class="prof-mi-left"><span class="prof-mi-ico"><svg width="18" height="18" style="color:var(--clr)"><use href="#i-edit"/></svg></span>编辑资料</div><span style="color:var(--t3)">›</span></div>
@@ -202,10 +203,16 @@ App.loadProfile = async function() {
       <div class="prof-mi" onclick="App.nav('checkinHistory')"><div class="prof-mi-left"><span class="prof-mi-ico"><svg width="18" height="18" style="color:var(--green)"><use href="#i-chart"/></svg></span>打卡记录</div><span style="color:var(--t3)">›</span></div>
       <div class="prof-mi" onclick="App.nav('reminders')"><div class="prof-mi-left"><span class="prof-mi-ico"><svg width="18" height="18" style="color:#f59e0b"><use href="#i-magic"/></svg></span>提醒设置</div><span style="color:var(--t3)">›</span></div>
     </div>
-    <div class="prof-out" onclick="App._handleAccountDelete()" style="color:var(--red)">注销账号</div>
-    <div class="prof-out" onclick="_doLogout()" style="color:var(--clr);font-weight:600">退出登录</div>
+    <button class="prof-logout-btn" onclick="_doLogout()">退出登录</button>
+    <div class="prof-out" onclick="App._handleAccountDelete()">注销账号</div>
   `;
 };
+
+// 手机号打码显示：138****8888
+function maskPhone(p) {
+  if (!p || p.length < 7) return p || '未绑定';
+  return p.slice(0, 3) + '****' + p.slice(-4);
+}
 
 // ---- 编辑资料 ----
 App.loadProfileEdit = async function() {

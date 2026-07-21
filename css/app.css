@@ -658,6 +658,7 @@ textarea.inp { resize: vertical; min-height: 80px; line-height: 1.6; }
 }
 .prof-nick { font-size: 20px; font-weight: 700; color: var(--t1); }
 .prof-lv { margin-top: 6px; font-size: 13px; color: var(--t2); font-weight: 500; }
+.prof-phone { margin-top: 8px; font-size: 13px; color: var(--t3); font-weight: 500; letter-spacing: .3px; }
 
 .prof-mi {
   display: flex; align-items: center; justify-content: space-between;
@@ -669,11 +670,24 @@ textarea.inp { resize: vertical; min-height: 80px; line-height: 1.6; }
 .prof-mi-ico { margin-right: 12px; font-size: 18px; }
 .prof-mi-left { display: flex; align-items: center; }
 
+/* 醒目退出登录按钮 */
+.prof-logout-btn {
+  display: block; width: 100%; margin-top: 20px;
+  padding: 14px 0; border: 1.5px solid var(--clr);
+  border-radius: 14px; background: transparent;
+  color: var(--clr); font-size: 16px; font-weight: 700;
+  cursor: pointer; transition: transform .08s ease, background .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.prof-logout-btn:active { transform: scale(.97); background: color-mix(in srgb, var(--clr) 10%, transparent); }
+
+/* 次要注销链接 */
 .prof-out {
-  text-align: center; padding: 18px; color: var(--t3);
-  font-size: 13px; cursor: pointer; margin-top: 16px;
+  text-align: center; padding: 14px; color: var(--t3);
+  font-size: 12px; cursor: pointer; margin-top: 10px;
   font-weight: 500;
 }
+.prof-out:hover { color: var(--red); }
 
 /* ========== Share ========== */
 .sh-page { padding: var(--page-pad); }
